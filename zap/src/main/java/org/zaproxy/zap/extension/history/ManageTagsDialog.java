@@ -38,6 +38,7 @@ import org.parosproxy.paros.model.HistoryReference;
 import org.zaproxy.zap.utils.SortedComboBoxModel;
 import org.zaproxy.zap.utils.SortedListModel;
 
+@SuppressWarnings("serial")
 public class ManageTagsDialog extends AbstractDialog {
 
     private static final long serialVersionUID = 1L;
@@ -55,7 +56,9 @@ public class ManageTagsDialog extends AbstractDialog {
     private JScrollPane jScrollPane = null;
     private SortedComboBoxModel<String> tagAddModel = null;
 
-    /** @throws HeadlessException */
+    /**
+     * @throws HeadlessException
+     */
     public ManageTagsDialog() throws HeadlessException {
         super();
         initialize();
@@ -86,6 +89,7 @@ public class ManageTagsDialog extends AbstractDialog {
 
         pack();
     }
+
     /**
      * This method initializes jPanel
      *
@@ -245,6 +249,7 @@ public class ManageTagsDialog extends AbstractDialog {
         }
         return btnAdd;
     }
+
     /**
      * This method initializes btnDelete
      *

@@ -20,7 +20,7 @@
 # This script runs a full scan against a target URL using ZAP
 #
 # It can either be run 'standalone', in which case depends on
-# https://pypi.python.org/pypi/python-owasp-zap-v2.4 and Docker, or it can be run
+# https://pypi.python.org/pypi/zaproxy and Docker, or it can be run
 # inside one of the ZAP docker containers. It automatically detects if it is
 # running in docker so the parameters are the same.
 #
@@ -131,7 +131,7 @@ def main(argv):
     delay = 0
     timeout = 0
     ignore_warn = False
-    hook_file = None
+    hook_file = ''
     user = ''
 
     pass_count = 0
@@ -224,6 +224,10 @@ def main(argv):
         usage()
         sys.exit(3)
 
+    if "-silent" in zap_options and zap_alpha:
+        logging.warning('You cannot use the \'-a\' option with the ZAP \'-silent\' option')
+        sys.exit(3)
+
     if running_in_docker():
         base_dir = '/zap/wrk/'
         if config_file or generate or report_html or report_xml or report_json or report_md or progress_file or context_file:
@@ -246,11 +250,12 @@ def main(argv):
 
     if config_file:
         # load config file from filestore
-        with open(base_dir + config_file) as f:
+        config_file = os.path.join(base_dir, config_file)
+        with open(config_file) as f:
             try:
                 load_config(f, config_dict, config_msg, out_of_scope_dict)
             except ValueError as e:
-                logging.warning("Failed to load config file " + base_dir + config_file + " " + str(e))
+                logging.warning("Failed to load config file " + config_file + " " + str(e))
                 sys.exit(3)
     elif config_url:
         # load config file from url
@@ -266,7 +271,7 @@ def main(argv):
 
     if progress_file:
         # load progress file from filestore
-        with open(base_dir + progress_file) as f:
+        with open(os.path.join(base_dir, progress_file)) as f:
             progress = json.load(f)
             # parse into something more useful...
             # in_prog_issues = map of vulnid -> {object with everything in}
@@ -276,15 +281,17 @@ def main(argv):
 
     if running_in_docker():
         try:
-            params = [
-                      '-config', 'spider.maxDuration=' + str(mins),
-                      '-addonupdate',
-                      '-addoninstall', 'pscanrulesBeta',  # In case we're running in the stable container
-                      '-addoninstall', 'ascanrulesBeta']
-
-            if zap_alpha:
-                params.extend(['-addoninstall', 'pscanrulesAlpha'])
-                params.extend(['-addoninstall', 'ascanrulesAlpha'])
+            params = ['-config', 'spider.maxDuration=' + str(mins)]
+            
+            if "-silent" not in zap_options:
+                params.append('-addonupdate')
+                # In case we're running in the stable container
+                params.extend(['-addoninstall', 'pscanrulesBeta'])
+                params.extend(['-addoninstall', 'ascanrulesBeta'])
+                      
+                if zap_alpha:
+                    params.extend(['-addoninstall', 'pscanrulesAlpha'])
+                    params.extend(['-addoninstall', 'ascanrulesAlpha'])
 
             add_zap_options(params, zap_options)
 
@@ -300,20 +307,22 @@ def main(argv):
         if context_file:
             mount_dir = os.path.dirname(os.path.abspath(context_file))
 
-        params = [
-                  '-config', 'spider.maxDuration=' + str(mins),
-                  '-addonupdate',
-                  '-addoninstall', 'pscanrulesBeta',  # In case we're running in the stable container
-                  '-addoninstall', 'ascanrulesBeta']
+        params = ['-config', 'spider.maxDuration=' + str(mins)]
 
-        if (zap_alpha):
-            params.extend(['-addoninstall', 'pscanrulesAlpha'])
-            params.extend(['-addoninstall', 'ascanrulesAlpha'])
+        if "-silent" not in zap_options:
+            params.append('-addonupdate')
+            # In case we're running in the stable container
+            params.extend(['-addoninstall', 'pscanrulesBeta'])
+            params.extend(['-addoninstall', 'ascanrulesBeta'])
+
+            if (zap_alpha):
+                params.extend(['-addoninstall', 'pscanrulesAlpha'])
+                params.extend(['-addoninstall', 'ascanrulesAlpha'])
 
         add_zap_options(params, zap_options)
 
         try:
-            cid = start_docker_zap('owasp/zap2docker-weekly', port, params, mount_dir)
+            cid = start_docker_zap('ghcr.io/zaproxy/zaproxy:weekly', port, params, mount_dir)
             zap_ip = ipaddress_for_cid(cid)
             logging.debug('Docker ZAP IP Addr: ' + zap_ip)
         except OSError:
@@ -332,7 +341,7 @@ def main(argv):
 
         if context_file:
             # handle the context file, cant use base_dir as it might not have been set up
-            zap_import_context(zap, '/zap/wrk/' + os.path.basename(context_file))
+            zap_import_context(zap, os.path.join('/zap/wrk/', context_file))
             if (user):
                 zap_set_scan_user(zap, user)
 
@@ -400,7 +409,7 @@ def main(argv):
 
             if generate:
                 # Create the config file
-                with open(base_dir + generate, 'w') as f:
+                with open(os.path.join(base_dir, generate), 'w') as f:
                     f.write('# zap-full-scan rule configuration file\n')
                     f.write('# Change WARN to IGNORE to ignore rule or FAIL to fail if rule matches\n')
                     f.write('# Active scan rules set to IGNORE will not be run which will speed up the scan\n')
@@ -457,19 +466,19 @@ def main(argv):
 
             if report_html:
                 # Save the report
-                write_report(base_dir + report_html, zap.core.htmlreport())
+                write_report(os.path.join(base_dir, report_html), zap.core.htmlreport())
 
             if report_json:
                 # Save the report
-                write_report(base_dir + report_json, zap.core.jsonreport())
+                write_report(os.path.join(base_dir, report_json), zap.core.jsonreport())
 
             if report_md:
                 # Save the report
-                write_report(base_dir + report_md, zap.core.mdreport())
+                write_report(os.path.join(base_dir, report_md), zap.core.mdreport())
 
             if report_xml:
                 # Save the report
-                write_report(base_dir + report_xml, zap.core.xmlreport())
+                write_report(os.path.join(base_dir, report_xml), zap.core.xmlreport())
 
             print('FAIL-NEW: ' + str(fail_count) + '\tFAIL-INPROG: ' + str(fail_inprog_count) +
                 '\tWARN-NEW: ' + str(warn_count) + '\tWARN-INPROG: ' + str(warn_inprog_count) +

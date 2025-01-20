@@ -44,22 +44,17 @@ import org.zaproxy.zap.model.ScanThread;
 import org.zaproxy.zap.model.SessionStructure;
 import org.zaproxy.zap.model.StructuralNode;
 import org.zaproxy.zap.model.TechSet;
-import org.zaproxy.zap.spider.Spider;
-import org.zaproxy.zap.spider.SpiderListener;
-import org.zaproxy.zap.spider.SpiderParam;
-import org.zaproxy.zap.spider.SpiderTaskResult;
-import org.zaproxy.zap.spider.filters.FetchFilter;
-import org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus;
-import org.zaproxy.zap.spider.filters.ParseFilter;
-import org.zaproxy.zap.spider.parser.SpiderParser;
 import org.zaproxy.zap.users.User;
 
 /**
  * The Class SpiderThread that controls the spidering process on a particular site. Being a
  * ScanThread, it also handles the update of the graphical UI and any other "extension-level"
  * required actions.
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
  */
-public class SpiderThread extends ScanThread implements SpiderListener {
+@Deprecated
+public class SpiderThread extends ScanThread implements org.zaproxy.zap.spider.SpiderListener {
 
     /** Whether the scanning process has stopped (either completed, either by user request). */
     private boolean stopScan = false;
@@ -74,10 +69,10 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     private ExtensionSpider extension;
 
     /** The spider. */
-    private Spider spider = null;
+    private org.zaproxy.zap.spider.Spider spider = null;
 
     /** The pending spider listeners which will be added to the Spider as soon at is initialized. */
-    private List<SpiderListener> pendingSpiderListeners;
+    private List<org.zaproxy.zap.spider.SpiderListener> pendingSpiderListeners;
 
     /** The spider done. */
     private int spiderDone = 0;
@@ -109,34 +104,19 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     /** The start uri. */
     private URI startURI = null;
 
-    private SpiderParam spiderParams;
+    private org.zaproxy.zap.spider.SpiderParam spiderParams;
 
-    private List<SpiderParser> customSpiderParsers = null;
+    private List<org.zaproxy.zap.spider.parser.SpiderParser> customSpiderParsers = null;
 
-    private List<FetchFilter> customFetchFilters = null;
+    private List<org.zaproxy.zap.spider.filters.FetchFilter> customFetchFilters = null;
 
-    private List<ParseFilter> customParseFilters = null;
+    private List<org.zaproxy.zap.spider.filters.ParseFilter> customParseFilters = null;
 
     private final String id;
 
-    /**
-     * Constructs a {@code SpiderThread} with the given data.
-     *
-     * @param extension the extension to obtain configurations and notify the view
-     * @param spiderParams the spider options
-     * @param site the name that identifies the target site
-     * @param listenner the scan listener
-     * @deprecated (2.6.0) Use {@link #SpiderThread(String, ExtensionSpider, SpiderParam, String,
-     *     ScanListenner)}
-     */
-    @Deprecated
-    public SpiderThread(
-            ExtensionSpider extension,
-            SpiderParam spiderParams,
-            String site,
-            ScanListenner listenner) {
-        this("?", extension, spiderParams, site, listenner);
-    }
+    private Date started;
+
+    private long timeTakenInMs;
 
     /**
      * Constructs a {@code SpiderThread} with the given data.
@@ -151,11 +131,11 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     public SpiderThread(
             String id,
             ExtensionSpider extension,
-            SpiderParam spiderParams,
+            org.zaproxy.zap.spider.SpiderParam spiderParams,
             String site,
             ScanListenner listenner) {
         super(site, listenner);
-        log.debug("Initializing spider thread for site: " + site);
+        log.debug("Initializing spider thread for site: {}", site);
         this.id = id;
         this.extension = extension;
         this.site = site;
@@ -182,8 +162,8 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     private void runScan() {
         // Do the scan
         spiderDone = 0;
-        Date start = new Date();
-        log.info("Starting spidering scan on " + site + " at " + start);
+        started = new Date();
+        log.info("Starting spidering scan on {} at {}", site, started);
         startSpider();
         this.isAlive = true;
     }
@@ -244,20 +224,15 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     private void startSpider() {
 
         spider =
-                new Spider(
-                        id,
-                        extension,
-                        spiderParams,
-                        extension.getModel().getOptionsParam().getConnectionParam(),
-                        extension.getModel(),
-                        this.scanContext);
+                new org.zaproxy.zap.spider.Spider(
+                        id, extension, spiderParams, extension.getModel(), this.scanContext);
 
         // Register this thread as a Spider Listener, so it gets notified of events and is able
         // to manipulate the UI accordingly
         spider.addSpiderListener(this);
 
         // Add the pending listeners
-        for (SpiderListener l : pendingSpiderListeners) {
+        for (org.zaproxy.zap.spider.SpiderListener l : pendingSpiderListeners) {
             spider.addSpiderListener(l);
         }
 
@@ -275,17 +250,17 @@ public class SpiderThread extends ScanThread implements SpiderListener {
 
         // Add any custom parsers and filters specified
         if (this.customSpiderParsers != null) {
-            for (SpiderParser sp : this.customSpiderParsers) {
+            for (org.zaproxy.zap.spider.parser.SpiderParser sp : this.customSpiderParsers) {
                 spider.addCustomParser(sp);
             }
         }
         if (this.customFetchFilters != null) {
-            for (FetchFilter ff : this.customFetchFilters) {
+            for (org.zaproxy.zap.spider.filters.FetchFilter ff : this.customFetchFilters) {
                 spider.addFetchFilter(ff);
             }
         }
         if (this.customParseFilters != null) {
-            for (ParseFilter pf : this.customParseFilters) {
+            for (org.zaproxy.zap.spider.filters.ParseFilter pf : this.customParseFilters) {
                 spider.addParseFilter(pf);
             }
         }
@@ -327,7 +302,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
 
         List<SiteNode> nodesInScope = Collections.emptyList();
         if (this.scanContext != null) {
-            log.debug("Adding seed for Scan of all in context " + scanContext.getName());
+            log.debug("Adding seed for Scan of all in context {}", scanContext.getName());
             nodesInScope = this.scanContext.getNodesInContextFromSiteTree();
         } else if (justScanInScope) {
             log.debug("Adding seed for Scan of all in scope.");
@@ -391,7 +366,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
                 }
             }
         } catch (Exception e) {
-            log.error("Error while adding seed for Spider scan: " + e.getMessage(), e);
+            log.error("Error while adding seed for Spider scan: {}", e.getMessage(), e);
         }
     }
 
@@ -418,21 +393,45 @@ public class SpiderThread extends ScanThread implements SpiderListener {
 
     @Override
     public void spiderComplete(boolean successful) {
-        log.info("Spider scanning complete: " + successful);
+        Date finished = new Date();
+        log.info("Spider scanning complete: {} on {} at {}", successful, site, finished);
+        this.timeTakenInMs = finished.getTime() - started.getTime();
         stopScan = true;
         this.isAlive = false;
         this.listenner.scanFinshed(site);
     }
 
+    /**
+     * Returns the time taken in milliseconds. This will be total time taken if the scan has
+     * finished or the time taken so far if it is still running.
+     *
+     * @return the time taken in milliseconds
+     * @since 2.11.0
+     */
+    public long getTimeTakenInMs() {
+        if (this.timeTakenInMs > 0) {
+            return this.timeTakenInMs;
+        }
+        if (this.started != null) {
+            return System.currentTimeMillis() - started.getTime();
+        }
+        return 0;
+    }
+
     @Override
-    public void foundURI(String uri, String method, FetchStatus status) {
+    public void foundURI(
+            String uri,
+            String method,
+            org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus status) {
         if (resultsModel != null) {
             addUriToResultsModel(uri, method, status);
         }
     }
 
     private void addUriToResultsModel(
-            final String uri, final String method, final FetchStatus status) {
+            final String uri,
+            final String method,
+            final org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus status) {
         if (!EventQueue.isDispatchThread()) {
             EventQueue.invokeLater(
                     new Runnable() {
@@ -446,11 +445,14 @@ public class SpiderThread extends ScanThread implements SpiderListener {
         }
 
         // Add the new result
-        if (status == FetchStatus.VALID) {
+        if (status == org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.VALID) {
             resultsModel.addScanResult(uri, method, null, false);
         } else {
             resultsModel.addScanResult(
-                    uri, method, getStatusLabel(status), status != FetchStatus.SEED);
+                    uri,
+                    method,
+                    getStatusLabel(status),
+                    status != org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.SEED);
         }
 
         // Update the count of found URIs
@@ -480,7 +482,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
         }
     }
 
-    private String getStatusLabel(FetchStatus status) {
+    private String getStatusLabel(org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus status) {
         switch (status) {
             case SEED:
                 return Constant.messages.getString("spider.table.flags.seed");
@@ -498,7 +500,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
     }
 
     @Override
-    public void notifySpiderTaskResult(SpiderTaskResult spiderTaskResult) {
+    public void notifySpiderTaskResult(org.zaproxy.zap.spider.SpiderTaskResult spiderTaskResult) {
         // Add the read message to the Site Map (tree or db structure)
         try {
             HttpMessage msg = spiderTaskResult.getHttpMessage();
@@ -546,7 +548,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
                         message.getRequestHeader().getMethod(),
                         "");
             } catch (URIException e) {
-                log.error("Error while adding node to added nodes model: " + e.getMessage(), e);
+                log.error("Error while adding node to added nodes model: {}", e.getMessage(), e);
             }
         }
     }
@@ -593,7 +595,7 @@ public class SpiderThread extends ScanThread implements SpiderListener {
      *
      * @param listener the listener
      */
-    public void addSpiderListener(SpiderListener listener) {
+    public void addSpiderListener(org.zaproxy.zap.spider.SpiderListener listener) {
         if (spider != null) {
             this.spider.addSpiderListener(listener);
         } else {
@@ -649,15 +651,18 @@ public class SpiderThread extends ScanThread implements SpiderListener {
         // Ignore
     }
 
-    public void setCustomSpiderParsers(List<SpiderParser> customSpiderParsers) {
+    public void setCustomSpiderParsers(
+            List<org.zaproxy.zap.spider.parser.SpiderParser> customSpiderParsers) {
         this.customSpiderParsers = customSpiderParsers;
     }
 
-    public void setCustomFetchFilters(List<FetchFilter> customFetchFilters) {
+    public void setCustomFetchFilters(
+            List<org.zaproxy.zap.spider.filters.FetchFilter> customFetchFilters) {
         this.customFetchFilters = customFetchFilters;
     }
 
-    public void setCustomParseFilters(List<ParseFilter> customParseFilters) {
+    public void setCustomParseFilters(
+            List<org.zaproxy.zap.spider.filters.ParseFilter> customParseFilters) {
         this.customParseFilters = customParseFilters;
     }
 

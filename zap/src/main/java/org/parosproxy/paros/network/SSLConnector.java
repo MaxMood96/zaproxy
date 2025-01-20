@@ -42,9 +42,13 @@
 // ZAP: 2020/04/20 Let SOCKS proxy resolve hosts if set (Issue 29).
 // ZAP: 2020/10/30 Add SNI hostname when using SOCKS with unresolved addresses.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2021/11/23 Allow to set certificates service.
+// ZAP: 2022/05/29 Address deprecations related to client certificates.
+// ZAP: 2022/06/07 Deprecate the class.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2022/09/27 Remove usage of Commons Validator class.
 package org.parosproxy.paros.network;
 
-import ch.csnc.extension.httpclient.SSLContextManager;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -88,17 +92,16 @@ import javax.net.ssl.X509KeyManager;
 import org.apache.commons.collections.MapIterator;
 import org.apache.commons.collections.map.LRUMap;
 import org.apache.commons.httpclient.ConnectTimeoutException;
-import org.apache.commons.httpclient.HttpMethodDirector;
 import org.apache.commons.httpclient.params.HttpConnectionParams;
-import org.apache.commons.httpclient.protocol.SecureProtocolSocketFactory;
-import org.apache.commons.validator.routines.InetAddressValidator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.parosproxy.paros.security.CachedSslCertifificateServiceImpl;
-import org.parosproxy.paros.security.CertData;
-import org.parosproxy.paros.security.SslCertificateService;
 
-public class SSLConnector implements SecureProtocolSocketFactory {
+/**
+ * @deprecated (2.12.0) Implementation details, do not use.
+ */
+@Deprecated
+public class SSLConnector
+        implements org.apache.commons.httpclient.protocol.SecureProtocolSocketFactory {
 
     private static final String SSL = "SSL";
 
@@ -188,7 +191,11 @@ public class SSLConnector implements SecureProtocolSocketFactory {
     // ZAP: Added logger
     private static final Logger logger = LogManager.getLogger(SSLConnector.class);
 
-    private static SSLContextManager sslContextManager = null;
+    @SuppressWarnings("deprecation")
+    private static org.parosproxy.paros.security.SslCertificateService sslCertificateService;
+
+    @SuppressWarnings("deprecation")
+    private static ch.csnc.extension.httpclient.SSLContextManager sslContextManager = null;
 
     /*
      * If relaxedTrust then we ignore all of the 'usual' https checks.
@@ -201,6 +208,7 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         this(true);
     }
 
+    @SuppressWarnings("deprecation")
     public SSLConnector(boolean relaxedTrust) {
         this.relaxedTrust = relaxedTrust;
         if (clientSSLSockFactory == null) {
@@ -212,14 +220,16 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         }
         // ZAP: removed ServerSocketFaktory
         if (sslContextManager == null) {
-            sslContextManager = new SSLContextManager();
+            sslContextManager = new ch.csnc.extension.httpclient.SSLContextManager();
         }
     }
 
-    public SSLContextManager getSSLContextManager() {
+    @SuppressWarnings("deprecation")
+    public ch.csnc.extension.httpclient.SSLContextManager getSSLContextManager() {
         return sslContextManager;
     }
 
+    @SuppressWarnings("deprecation")
     public void setEnableClientCert(boolean enabled) {
         if (enabled) {
             if (clientSSLSockCertFactory == null) {
@@ -227,19 +237,20 @@ public class SSLConnector implements SecureProtocolSocketFactory {
             }
 
             clientSSLSockFactory = clientSSLSockCertFactory;
-            logger.info("ClientCert enabled using: " + sslContextManager.getDefaultKey());
+            logger.info("ClientCert enabled using: {}", sslContextManager.getDefaultKey());
         } else {
             clientSSLSockFactory = getClientSocketFactory(SSL);
             logger.info("ClientCert disabled");
         }
     }
 
+    @SuppressWarnings("deprecation")
     public void setActiveCertificate() {
 
         SSLContext sslcont = sslContextManager.getSSLContext(sslContextManager.getDefaultKey());
         clientSSLSockCertFactory =
                 createDecoratedClientSslSocketFactory(sslcont.getSocketFactory());
-        logger.info("ActiveCertificate set to: " + sslContextManager.getDefaultKey());
+        logger.info("ActiveCertificate set to: {}", sslContextManager.getDefaultKey());
     }
 
     // ZAP: removed server socket methods
@@ -335,9 +346,8 @@ public class SSLConnector implements SecureProtocolSocketFactory {
                     }
                 } catch (NoSuchAlgorithmException | KeyManagementException | IOException e) {
                     logger.error(
-                            "Failed to read the SSL/TLS supported protocols."
-                                    + " Using default protocol versions: "
-                                    + Arrays.toString(FAIL_SAFE_DEFAULT_ENABLED_PROTOCOLS),
+                            "Failed to read the SSL/TLS supported protocols. Using default protocol versions: {}",
+                            Arrays.toString(FAIL_SAFE_DEFAULT_ENABLED_PROTOCOLS),
                             e);
                     tempSupportedProtocols = FAIL_SAFE_DEFAULT_ENABLED_PROTOCOLS;
                 }
@@ -345,8 +355,8 @@ public class SSLConnector implements SecureProtocolSocketFactory {
             Arrays.sort(tempSupportedProtocols);
             supportedProtocols = tempSupportedProtocols;
             logger.info(
-                    "Done reading supported SSL/TLS protocols: "
-                            + Arrays.toString(supportedProtocols));
+                    "Done reading supported SSL/TLS protocols: {}",
+                    Arrays.toString(supportedProtocols));
         }
     }
 
@@ -442,7 +452,9 @@ public class SSLConnector implements SecureProtocolSocketFactory {
             } catch (SSLException e) {
                 if (!e.getMessage().contains(CONTENTS_UNRECOGNIZED_NAME_EXCEPTION)
                         || !params.getBooleanParameter(
-                                HttpMethodDirector.PARAM_RESOLVE_HOSTNAME, true)) {
+                                org.apache.commons.httpclient.HttpMethodDirector
+                                        .PARAM_RESOLVE_HOSTNAME,
+                                true)) {
                     throw e;
                 }
 
@@ -465,7 +477,9 @@ public class SSLConnector implements SecureProtocolSocketFactory {
     private static InetSocketAddress createRemoteAddr(
             HttpConnectionParams params, String host, int port) {
         if (params == null
-                || params.getBooleanParameter(HttpMethodDirector.PARAM_RESOLVE_HOSTNAME, true)) {
+                || params.getBooleanParameter(
+                        org.apache.commons.httpclient.HttpMethodDirector.PARAM_RESOLVE_HOSTNAME,
+                        true)) {
             return new InetSocketAddress(host, port);
         }
         return InetSocketAddress.createUnresolved(host, port);
@@ -506,7 +520,7 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         try {
             return new SNIHostName(hostname);
         } catch (IllegalArgumentException e) {
-            logger.warn("Failed to create the SNI hostname for: " + hostname, e);
+            logger.warn("Failed to create the SNI hostname for: {}", hostname, e);
         }
         return null;
     }
@@ -527,13 +541,10 @@ public class SSLConnector implements SecureProtocolSocketFactory {
             }
 
             logger.info(
-                    "Caching address of misconfigured (\"unrecognized_name\") host [host="
-                            + host
-                            + ", port="
-                            + port
-                            + "] for the next "
-                            + MAX_AGE_MISCONFIGURED_HOST_IN_MIN
-                            + " minutes, following connections will not use the hostname.");
+                    "Caching address of misconfigured (\"unrecognized_name\") host [host={}, port={}] for the next {} minutes, following connections will not use the hostname.",
+                    host,
+                    port,
+                    MAX_AGE_MISCONFIGURED_HOST_IN_MIN);
             misconfiguredHosts.put(
                     host + port, new MisconfiguredHostCacheEntry(host, port, address));
         }
@@ -562,11 +573,9 @@ public class SSLConnector implements SecureProtocolSocketFactory {
             MisconfiguredHostCacheEntry entry = (MisconfiguredHostCacheEntry) it.getValue();
             if (entry.isStale(currentTime)) {
                 logger.info(
-                        "Removing stale cached address of misconfigured (\"unrecognized_name\") host [host="
-                                + entry.getHost()
-                                + ", port="
-                                + entry.getPort()
-                                + "], following connections will be attempted with the hostname.");
+                        "Removing stale cached address of misconfigured (\"unrecognized_name\") host [host={}, port={}], following connections will be attempted with the hostname.",
+                        entry.getHost(),
+                        entry.getPort());
                 it.remove();
             }
         }
@@ -599,9 +608,6 @@ public class SSLConnector implements SecureProtocolSocketFactory {
                 "Method no longer supported since it's no longer required/called by Commons HttpClient library (version >= 3.0).");
     }
 
-    /**
-     * @see SecureProtocolSocketFactory#createSocket(java.net.Socket,java.lang.String,int,boolean)
-     */
     @Override
     public Socket createSocket(Socket socket, String host, int port, boolean autoClose)
             throws IOException, UnknownHostException {
@@ -627,7 +633,8 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         } catch (SSLException e) {
             if (e.getMessage().contains(CONTENTS_UNRECOGNIZED_NAME_EXCEPTION)
                     && params.getBooleanParameter(
-                            HttpMethodDirector.PARAM_RESOLVE_HOSTNAME, true)) {
+                            org.apache.commons.httpclient.HttpMethodDirector.PARAM_RESOLVE_HOSTNAME,
+                            true)) {
                 cacheMisconfiguredHost(host, port, InetAddress.getByName(host));
             }
             // Throw the exception anyway because the socket might no longer be usable (e.g.
@@ -665,7 +672,9 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         return s;
     }
 
-    /** @deprecated (2.8.0) No longer used/needed. */
+    /**
+     * @deprecated (2.8.0) No longer used/needed.
+     */
     @Deprecated
     public SSLSocketFactory getTunnelSSLSocketFactory(String hostname) {
         return getTunnelSSLSocketFactory(hostname, null);
@@ -716,33 +725,59 @@ public class SSLConnector implements SecureProtocolSocketFactory {
         }
     }
 
+    @SuppressWarnings("deprecation")
     static void initKeyManagerFactoryWithCertForHostname(
             KeyManagerFactory keyManagerFactory, String hostname, InetAddress listeningAddress)
-            throws InvalidKeyException, UnrecoverableKeyException, NoSuchAlgorithmException,
-                    CertificateException, NoSuchProviderException, SignatureException,
-                    KeyStoreException, IOException {
+            throws InvalidKeyException,
+                    UnrecoverableKeyException,
+                    NoSuchAlgorithmException,
+                    CertificateException,
+                    NoSuchProviderException,
+                    SignatureException,
+                    KeyStoreException,
+                    IOException {
 
         boolean hostnameIsIpAddress = isIpAddress(hostname);
 
-        CertData certData = hostnameIsIpAddress ? new CertData() : new CertData(hostname);
+        org.parosproxy.paros.security.CertData certData =
+                hostnameIsIpAddress
+                        ? new org.parosproxy.paros.security.CertData()
+                        : new org.parosproxy.paros.security.CertData(hostname);
         if (hostname == null && listeningAddress != null) {
             certData.addSubjectAlternativeName(
-                    new CertData.Name(CertData.Name.IP_ADDRESS, listeningAddress.getHostAddress()));
+                    new org.parosproxy.paros.security.CertData.Name(
+                            org.parosproxy.paros.security.CertData.Name.IP_ADDRESS,
+                            listeningAddress.getHostAddress()));
         }
 
         if (hostnameIsIpAddress) {
             certData.addSubjectAlternativeName(
-                    new CertData.Name(CertData.Name.IP_ADDRESS, hostname));
+                    new org.parosproxy.paros.security.CertData.Name(
+                            org.parosproxy.paros.security.CertData.Name.IP_ADDRESS, hostname));
         }
 
-        KeyStore ks = CachedSslCertifificateServiceImpl.getService().createCertForHost(certData);
-        keyManagerFactory.init(ks, SslCertificateService.PASSPHRASE);
+        if (sslCertificateService == null) {
+            throw new org.parosproxy.paros.security.MissingRootCertificateException(
+                    "The certificates service was not set.");
+        }
+
+        KeyStore ks = sslCertificateService.createCertForHost(certData);
+        keyManagerFactory.init(ks, org.parosproxy.paros.security.SslCertificateService.PASSPHRASE);
+    }
+
+    /**
+     * Sets the service used to issue server certificates.
+     *
+     * @param service the service.
+     */
+    @SuppressWarnings("deprecation")
+    public static void setSslCertificateService(
+            org.parosproxy.paros.security.SslCertificateService service) {
+        sslCertificateService = service;
     }
 
     private static boolean isIpAddress(String value) {
-        return value != null
-                && !value.isEmpty()
-                && InetAddressValidator.getInstance().isValid(value);
+        return false;
     }
 
     private static SSLSocketFactory createDecoratedServerSslSocketFactory(

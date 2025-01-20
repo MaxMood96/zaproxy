@@ -58,10 +58,22 @@
 // ZAP: 2019/10/21 Add Alert builder.
 // ZAP: 2020/11/03 Add alertRef field.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2021/04/30 Add input vector to Alert
 // ZAP: 2021/06/22 Moved the ReportGenerator.entityEncode method to this class.
+// ZAP: 2022/02/02 Deleted a deprecated setDetails method.
+// ZAP: 2022/02/03 Removed SUSPICIOUS, WARNING, MSG_RELIABILITY, setRiskReliability(int, int) and
+// getReliability()
+// ZAP: 2022/02/25 Remove code deprecated in 2.5.0
+// ZAP: 2022/05/26 Add addTag and removeTag methods
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/09/12 Add NUMBER_RISKS convenience constant.
+// ZAP: 2023/11/14 When setting CWE also add a CWE alert tag with an appropriate URL.
 package org.parosproxy.paros.core.scanner;
 
 import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.ImageIcon;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.text.StringEscapeUtils;
@@ -160,42 +172,33 @@ public class Alert implements Comparable<Alert> {
     public static final int RISK_LOW = 1;
     public static final int RISK_MEDIUM = 2;
     public static final int RISK_HIGH = 3;
+    /*
+     * The number of risk categories or scores used within ZAP.
+     *
+     * @since 2.14.0
+     */
+    public static final int NUMBER_RISKS = 4;
 
     // ZAP: Added FALSE_POSITIVE
     public static final int CONFIDENCE_FALSE_POSITIVE = 0;
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #CONFIDENCE_LOW} confidence. SUSPICIOUS reliability
-     *     has been deprecated in favour of using CONFIDENCE_LOW confidence.
-     */
-    @Deprecated public static final int SUSPICIOUS = 1;
 
     public static final int CONFIDENCE_LOW = 1;
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #CONFIDENCE_MEDIUM} confidence. WARNING reliability
-     *     has been deprecated in favour of using CONFIDENCE_MEDIUM confidence.
-     */
-    @Deprecated public static final int WARNING = 2;
 
     public static final int CONFIDENCE_MEDIUM = 2;
     public static final int CONFIDENCE_HIGH = 3;
     public static final int CONFIDENCE_USER_CONFIRMED = 4;
 
     public static final String[] MSG_RISK = {"Informational", "Low", "Medium", "High"};
-    // ZAP: Added "false positive"
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #MSG_CONFIDENCE}. Use of reliability has been
-     *     deprecated in favour of using confidence.
-     */
-    @Deprecated
-    public static final String[] MSG_RELIABILITY = {
-        "False Positive", "Low", "Medium", "High", "Confirmed"
-    };
 
     public static final String[] MSG_CONFIDENCE = {
         "False Positive", "Low", "Medium", "High", "Confirmed"
     };
 
+    private static final String CWE_KEY = "CWE-";
+    private static final String CWE_URL_BASE = "https://cwe.mitre.org/data/definitions/";
+
     private int alertId = -1; // ZAP: Changed default alertId
+    private int historyId;
     private int pluginId = -1;
     private String name = "";
     private int risk = RISK_INFO;
@@ -208,6 +211,7 @@ public class Alert implements Comparable<Alert> {
     private String solution = "";
     private String reference = "";
     private String evidence = "";
+    private String inputVector = "";
     private int cweId = -1;
     private int wascId = -1;
     // Temporary ref - should be cleared asap after use
@@ -216,13 +220,14 @@ public class Alert implements Comparable<Alert> {
     private int sourceHistoryId = 0;
     private HistoryReference historyRef = null;
     // ZAP: Added logger
-    private static final Logger logger = LogManager.getLogger(Alert.class);
+    private static final Logger LOGGER = LogManager.getLogger(Alert.class);
     // Cache this info so that we dont have to keep a ref to the HttpMessage
     private String method = "";
     private String postData;
     private URI msgUri = null;
     private Source source = Source.UNKNOWN;
     private String alertRef = "";
+    private Map<String, String> tags = Collections.emptyMap();
 
     public Alert(int pluginId) {
         this.pluginId = pluginId;
@@ -246,16 +251,17 @@ public class Alert implements Comparable<Alert> {
                 recordAlert.getConfidence(),
                 recordAlert.getAlert());
 
+        historyId = recordAlert.getHistoryId();
         HistoryReference hRef = null;
         try {
             hRef = new HistoryReference(recordAlert.getHistoryId());
 
         } catch (HttpMalformedHeaderException e) {
             // ZAP: Just an indication the history record doesn't exist
-            logger.debug(e.getMessage(), e);
+            LOGGER.debug(e.getMessage(), e);
         } catch (Exception e) {
             // ZAP: Log the exception
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         init(recordAlert, hRef);
@@ -276,7 +282,9 @@ public class Alert implements Comparable<Alert> {
                 recordAlert.getCweId(),
                 recordAlert.getWascId(),
                 null);
+        setInputVector(recordAlert.getInputVector());
         setHistoryRef(ref);
+        setSourceHistoryId(recordAlert.getSourceHistoryId());
         String alertRef = recordAlert.getAlertRef();
         if (alertRef != null) {
             this.setAlertRef(alertRef);
@@ -291,17 +299,6 @@ public class Alert implements Comparable<Alert> {
                 recordAlert.getAlert());
 
         init(recordAlert, ref);
-    }
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #setRiskConfidence(int, int)}. Use of reliability has
-     *     been deprecated in favour of using confidence
-     * @param risk the new risk
-     * @param confidence the new confidence
-     */
-    @Deprecated
-    public void setRiskReliability(int risk, int confidence) {
-        this.risk = risk;
-        this.confidence = confidence;
     }
 
     public void setRiskConfidence(int risk, int confidence) {
@@ -330,15 +327,6 @@ public class Alert implements Comparable<Alert> {
     }
 
     /**
-     * @deprecated (2.5.0) Replaced by {@link #setName}. Use of alert has been deprecated in favour
-     *     of using name.
-     * @param alert the new name
-     */
-    @Deprecated
-    public void setAlert(String alert) {
-        setName(alert);
-    }
-    /**
      * Sets the name of the alert to name
      *
      * @param name the name to set for the alert
@@ -346,34 +334,6 @@ public class Alert implements Comparable<Alert> {
      */
     public void setName(String name) {
         this.name = (name == null) ? "" : name;
-    }
-
-    /**
-     * Sets the details of the alert.
-     *
-     * @param description the description of the alert
-     * @param uri the URI that has the issue
-     * @param param the parameter that has the issue
-     * @param attack the attack that triggers the issue
-     * @param otherInfo other information about the issue
-     * @param solution the solution for the issue
-     * @param reference references about the issue
-     * @param msg the HTTP message that triggers/triggered the issue
-     * @deprecated (2.2.0) Replaced by {@link #setDetail(String, String, String, String, String,
-     *     String, String, String, int, int, HttpMessage)}. It will be removed in a future release.
-     * @see Builder
-     */
-    @Deprecated
-    public void setDetail(
-            String description,
-            String uri,
-            String param,
-            String attack,
-            String otherInfo,
-            String solution,
-            String reference,
-            HttpMessage msg) {
-        setDetail(description, uri, param, attack, otherInfo, solution, reference, "", -1, -1, msg);
     }
 
     /**
@@ -533,6 +493,11 @@ public class Alert implements Comparable<Alert> {
             return result;
         }
 
+        result = inputVector.compareTo(alert2.inputVector);
+        if (result != 0) {
+            return result;
+        }
+
         return compareStrings(attack, alert2.attack);
     }
 
@@ -599,6 +564,9 @@ public class Alert implements Comparable<Alert> {
         } else if (!evidence.equals(item.evidence)) {
             return false;
         }
+        if (!inputVector.equals(item.inputVector)) {
+            return false;
+        }
         if (attack == null) {
             if (item.attack != null) {
                 return false;
@@ -616,6 +584,7 @@ public class Alert implements Comparable<Alert> {
         result = prime * result + risk;
         result = prime * result + confidence;
         result = prime * result + ((evidence == null) ? 0 : evidence.hashCode());
+        result = prime * result + inputVector.hashCode();
         result = prime * result + name.hashCode();
         result = prime * result + otherInfo.hashCode();
         result = prime * result + param.hashCode();
@@ -646,9 +615,11 @@ public class Alert implements Comparable<Alert> {
                 this.reference,
                 this.historyRef);
         item.setEvidence(this.evidence);
+        item.setInputVector(inputVector);
         item.setCweId(this.cweId);
         item.setWascId(this.wascId);
         item.setSource(this.source);
+        item.setTags(this.tags);
         return item;
     }
 
@@ -719,15 +690,7 @@ public class Alert implements Comparable<Alert> {
     public String paragraph(String text) {
         return "<p>" + text.replaceAll("\\r\\n", "</p><p>").replaceAll("\\n", "</p><p>") + "</p>";
     }
-    /**
-     * @deprecated (2.5.0) Replaced by {@link #getName}. Use of alert has been deprecated in favour
-     *     of using name.
-     * @return Returns the alert.
-     */
-    @Deprecated
-    public String getAlert() {
-        return name;
-    }
+
     /**
      * @return Returns the name of the alert.
      * @since 2.5.0
@@ -735,15 +698,24 @@ public class Alert implements Comparable<Alert> {
     public String getName() {
         return name;
     }
-    /** @return Returns the description. */
+
+    /**
+     * @return Returns the description.
+     */
     public String getDescription() {
         return description;
     }
-    /** @return Returns the id. */
+
+    /**
+     * @return Returns the id.
+     */
     public int getPluginId() {
         return pluginId;
     }
-    /** @return Returns the message. */
+
+    /**
+     * @return Returns the message.
+     */
     public HttpMessage getMessage() {
         if (this.message != null) {
             return this.message;
@@ -752,38 +724,43 @@ public class Alert implements Comparable<Alert> {
             try {
                 return this.historyRef.getHttpMessage();
             } catch (HttpMalformedHeaderException | DatabaseException e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
         return null;
     }
-    /** @return Returns the otherInfo. */
+
+    /**
+     * @return Returns the otherInfo.
+     */
     public String getOtherInfo() {
         return otherInfo;
     }
-    /** @return Returns the param. */
+
+    /**
+     * @return Returns the param.
+     */
     public String getParam() {
         return param;
     }
-    /** @return Returns the reference. */
+
+    /**
+     * @return Returns the reference.
+     */
     public String getReference() {
         return reference;
     }
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #getConfidence()}.
-     * @return the reliability.
-     */
-    @Deprecated
-    public int getReliability() {
-        return confidence;
-    }
 
-    /** @return Returns the confidence. */
+    /**
+     * @return Returns the confidence.
+     */
     public int getConfidence() {
         return confidence;
     }
 
-    /** @return Returns the risk. */
+    /**
+     * @return Returns the risk.
+     */
     public int getRisk() {
         return risk;
     }
@@ -832,19 +809,31 @@ public class Alert implements Comparable<Alert> {
         }
         return null;
     }
-    /** @return Returns the solution. */
+
+    /**
+     * @return Returns the solution.
+     */
     public String getSolution() {
         return solution;
     }
-    /** @return Returns the uri. */
+
+    /**
+     * @return Returns the uri.
+     */
     public String getUri() {
         return uri;
     }
-    /** @return Returns the alertId. */
+
+    /**
+     * @return Returns the alertId.
+     */
     public int getAlertId() {
         return alertId;
     }
-    /** @param alertId The alertId to set. */
+
+    /**
+     * @param alertId The alertId to set.
+     */
     public void setAlertId(int alertId) {
         this.alertId = alertId;
     }
@@ -863,6 +852,26 @@ public class Alert implements Comparable<Alert> {
             sb.append("  <evidence>").append(replaceEntity(evidence)).append("</evidence>\r\n");
         }
         return sb.toString();
+    }
+
+    /**
+     * Sets the ID of the {@code HistoryReference} of the alert.
+     *
+     * @param historyId the history ID.
+     * @since 2.16.0
+     */
+    public void setHistoryId(int historyId) {
+        this.historyId = historyId;
+    }
+
+    /**
+     * Gets the ID of the {@code HistoryReference} of the alert.
+     *
+     * @return the history ID, or 0 if not defined.
+     * @since 2.16.0
+     */
+    public int getHistoryId() {
+        return historyId;
     }
 
     public int getSourceHistoryId() {
@@ -916,6 +925,26 @@ public class Alert implements Comparable<Alert> {
         this.evidence = (evidence == null) ? "" : evidence;
     }
 
+    /**
+     * Gets the input vector used to find the alert.
+     *
+     * @return the short name of the input vector, never {@code null}.
+     * @since 2.12.0
+     */
+    public String getInputVector() {
+        return inputVector;
+    }
+
+    /**
+     * Sets the input vector used to find the alert.
+     *
+     * @param inputVector the short name of the input vector.
+     * @since 2.12.0
+     */
+    public void setInputVector(String inputVector) {
+        this.inputVector = inputVector == null ? "" : inputVector;
+    }
+
     public int getCweId() {
         return cweId;
     }
@@ -930,6 +959,22 @@ public class Alert implements Comparable<Alert> {
 
     public void setWascId(int wascId) {
         this.wascId = wascId;
+    }
+
+    /**
+     * @since 2.11.0
+     */
+    public Map<String, String> getTags() {
+        return tags;
+    }
+
+    /**
+     * @since 2.11.0
+     */
+    public void setTags(Map<String, String> tags) {
+        if (tags != null) {
+            this.tags = tags;
+        }
     }
 
     /**
@@ -1033,6 +1078,7 @@ public class Alert implements Comparable<Alert> {
         private String solution;
         private String reference;
         private String evidence;
+        private String inputVector;
         private int cweId = -1;
         private int wascId = -1;
         private HttpMessage message;
@@ -1040,6 +1086,7 @@ public class Alert implements Comparable<Alert> {
         private HistoryReference historyRef;
         private Source source = Source.UNKNOWN;
         private String alertRef;
+        private Map<String, String> tags;
 
         protected Builder() {}
 
@@ -1108,6 +1155,18 @@ public class Alert implements Comparable<Alert> {
             return this;
         }
 
+        /**
+         * Sets the input vector used to find the alert.
+         *
+         * @param inputVector the short name of the input vector.
+         * @return the builder for chaining.
+         * @since 2.12.0
+         */
+        public Builder setInputVector(String inputVector) {
+            this.inputVector = inputVector;
+            return this;
+        }
+
         public Builder setCweId(int cweId) {
             this.cweId = cweId;
             return this;
@@ -1144,10 +1203,74 @@ public class Alert implements Comparable<Alert> {
         }
 
         /**
+         * @since 2.11.0
+         */
+        public Builder setTags(Map<String, String> tags) {
+            this.tags = tags;
+            return this;
+        }
+
+        /**
+         * Adds an Alert tag with the given key (tag/name) to the existing collection for this
+         * Alert/Builder.
+         *
+         * @since 2.12.0
+         */
+        public Builder addTag(String tag) {
+            addTag(tag, "");
+            return this;
+        }
+
+        /**
+         * Adds an Alert tag with the given key (tag/name) and value to the existing collection for
+         * this Alert/Builder.
+         *
+         * @since 2.12.0
+         */
+        public Builder addTag(String tag, String value) {
+            if (this.tags == null) {
+                this.tags = new HashMap<>();
+            }
+            this.tags.put(tag, value);
+            return this;
+        }
+
+        /**
+         * Removes an Alert tag with the given key (tag/name) from the existing collection for this
+         * Alert/Builder.
+         *
+         * @since 2.12.0
+         */
+        public Builder removeTag(String tag) {
+            if (this.tags == null) {
+                return this;
+            }
+            this.tags.remove(tag);
+            return this;
+        }
+
+        /**
+         * Removes an Alert tag with the given key (tag/name) and value from the existing collection
+         * for this Alert/Builder.
+         *
+         * @since 2.12.0
+         */
+        public Builder removeTag(String tag, String value) {
+            if (this.tags == null) {
+                return this;
+            }
+            this.tags.remove(tag, value);
+            return this;
+        }
+
+        /**
          * Builds the alert from the specified data.
          *
          * <p>The alert URI defaults to the one from the {@code HistoryReference} or {@code
          * HttpMessage} if set.
+         *
+         * <p><strong>Note:</strong> If the Alert has a CWE set then an associated Tag will be added
+         * during {@link #build()}
          *
          * @return the alert with specified data.
          */
@@ -1174,6 +1297,7 @@ public class Alert implements Comparable<Alert> {
             alert.setSolution(solution);
             alert.setReference(reference);
             alert.setEvidence(evidence);
+            alert.setInputVector(inputVector);
             alert.setCweId(cweId);
             alert.setWascId(wascId);
             alert.setMessage(message);
@@ -1183,8 +1307,27 @@ public class Alert implements Comparable<Alert> {
             if (alertRef != null) {
                 alert.setAlertRef(alertRef);
             }
+            alert.setTags(withCweTag(tags, cweId));
 
             return alert;
+        }
+
+        private static String createCweUrl(int cweId) {
+            if (cweId <= 0) {
+                return "";
+            }
+            return CWE_URL_BASE + cweId + ".html";
+        }
+
+        private static Map<String, String> withCweTag(Map<String, String> existingTags, int cweId) {
+            String cweUrl = createCweUrl(cweId);
+            if (cweUrl.isEmpty()) {
+                return existingTags == null ? null : new HashMap<>(existingTags);
+            }
+            Map<String, String> newTags =
+                    existingTags == null ? new HashMap<>() : new HashMap<>(existingTags);
+            newTags.put(CWE_KEY + cweId, cweUrl);
+            return newTags;
         }
     }
 

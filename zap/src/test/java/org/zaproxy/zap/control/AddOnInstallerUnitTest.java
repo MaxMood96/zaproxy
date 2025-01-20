@@ -23,17 +23,26 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.parosproxy.paros.Constant;
+import org.zaproxy.zap.control.AddOn.BundleData;
+import org.zaproxy.zap.utils.I18N;
 
 /** Unit test for {@link AddOnInstaller}. */
 class AddOnInstallerUnitTest extends AddOnTestUtils {
@@ -41,6 +50,11 @@ class AddOnInstallerUnitTest extends AddOnTestUtils {
     @BeforeEach
     void createZapHome() throws Exception {
         Constant.setZapHome(newTempDir("home").toAbsolutePath().toString());
+    }
+
+    @AfterEach
+    void afterEach() {
+        Constant.messages = null;
     }
 
     @Test
@@ -52,7 +66,7 @@ class AddOnInstallerUnitTest extends AddOnTestUtils {
         // Then
         assertThat(
                 Paths.get(Constant.getZapHome()).relativize(addOnDataDir),
-                is(equalTo(Paths.get("addOnData/addOnId"))));
+                is(equalTo(Paths.get("addOnData/addOnId/1.0.0"))));
     }
 
     @Test
@@ -64,7 +78,26 @@ class AddOnInstallerUnitTest extends AddOnTestUtils {
         // Then
         assertThat(
                 Paths.get(Constant.getZapHome()).relativize(addOnLibsDir),
-                is(equalTo(Paths.get("addOnData/addOnId/libs"))));
+                is(equalTo(Paths.get("addOnData/addOnId/1.0.0/libs"))));
+    }
+
+    @Test
+    void shouldDeleteLegacyAddOnLibsDir() throws Exception {
+        // Given
+        AddOn addOnA = new AddOn(createAddOnFile("addOnA.zap"));
+        Path addOnALibsDir = Paths.get(Constant.getZapHome(), "addOnData/addOnA/libs");
+        createFile(addOnALibsDir.resolve("a_a.jar"));
+        createFile(addOnALibsDir.resolve("a_b.jar"));
+        AddOn addOnB = new AddOn(createAddOnFile("addOnB.zap"));
+        Path addOnBLibsDir = Paths.get(Constant.getZapHome(), "addOnData/addOnB/libs");
+        createFile(addOnBLibsDir.resolve("b_a.jar"));
+        createFile(addOnBLibsDir.resolve("b_b.jar"));
+        List<AddOn> addOns = List.of(addOnA, addOnB);
+        // When
+        AddOnInstaller.deleteLegacyAddOnLibsDir(addOns);
+        // Then
+        assertThat(Files.notExists(addOnALibsDir), is(equalTo(true)));
+        assertThat(Files.notExists(addOnBLibsDir), is(equalTo(true)));
     }
 
     @Test
@@ -179,28 +212,38 @@ class AddOnInstallerUnitTest extends AddOnTestUtils {
         assertInstalledLibs(addOn, "lib1", "lib2");
     }
 
-    private static Path addOnDataLibsDir(AddOn addOn) {
-        return AddOnInstaller.getAddOnDataDir(addOn).resolve("libs");
+    @Test
+    void shouldRemoveAddOnResourceBundleOnSoftUninstall() throws Exception {
+        // Given
+        Constant.messages = mock(I18N.class);
+        var addOn = mock(AddOn.class);
+        var bundleData = mock(BundleData.class);
+        given(addOn.getBundleData()).willReturn(bundleData);
+        var bundlePrefix = "prefix";
+        given(bundleData.getPrefix()).willReturn(bundlePrefix);
+        var callback = mock(AddOnUninstallationProgressCallback.class);
+        // When
+        boolean successfully = AddOnInstaller.softUninstall(addOn, callback);
+        // Then
+        assertThat(successfully, is(equalTo(true)));
+        verify(Constant.messages).removeMessageBundle(bundlePrefix);
+        verifyNoMoreInteractions(Constant.messages);
     }
 
-    private static Path installLib(AddOn addOn, String name) throws IOException {
-        return installLib(addOn, name, null);
-    }
-
-    private static Path installLib(AddOn addOn, String name, String contents) throws IOException {
-        Path addOnLibsDir = addOnDataLibsDir(addOn);
-        return createFile(addOnLibsDir.resolve(name), contents);
-    }
-
-    private static Path createFile(Path file) throws IOException {
-        return createFile(file, null);
-    }
-
-    private static Path createFile(Path file, String contents) throws IOException {
-        Files.createDirectories(file.getParent());
-        String data = contents != null ? contents : DEFAULT_LIB_CONTENTS;
-        Files.write(file, data.getBytes(StandardCharsets.UTF_8));
-        return file;
+    @Test
+    void shouldNotRemoveAddOnResourceBundleIfNoneOnSoftUninstall() throws Exception {
+        // Given
+        Constant.messages = mock(I18N.class);
+        var addOn = mock(AddOn.class);
+        var bundleData = mock(BundleData.class);
+        given(addOn.getBundleData()).willReturn(bundleData);
+        given(bundleData.getPrefix()).willReturn("");
+        var callback = mock(AddOnUninstallationProgressCallback.class);
+        // When
+        boolean successfully = AddOnInstaller.softUninstall(addOn, callback);
+        // Then
+        assertThat(successfully, is(equalTo(true)));
+        verifyNoInteractions(Constant.messages);
     }
 
     private static void assertInstalledLibs(AddOn addOn, String... fileNames) throws IOException {

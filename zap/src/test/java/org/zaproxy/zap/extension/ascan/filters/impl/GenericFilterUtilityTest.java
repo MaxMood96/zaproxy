@@ -33,7 +33,9 @@ import org.zaproxy.zap.extension.ascan.filters.FilterCriteria;
 import org.zaproxy.zap.extension.ascan.filters.FilterResult;
 import org.zaproxy.zap.model.StructuralNode;
 
-/** @author KSASAN preetkaran20@gmail.com */
+/**
+ * @author KSASAN preetkaran20@gmail.com
+ */
 class GenericFilterUtilityTest extends WithConfigsTest {
 
     private AbstractGenericScanFilter<String, String> abstractGenericScanFilter;
@@ -41,7 +43,7 @@ class GenericFilterUtilityTest extends WithConfigsTest {
     @BeforeEach
     void init() {
         abstractGenericScanFilter =
-                new AbstractGenericScanFilter<String, String>() {
+                new AbstractGenericScanFilter<>() {
 
                     @Override
                     public FilterResult isFiltered(StructuralNode node) {

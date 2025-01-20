@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.tree.DefaultTreeModel;
+import org.zaproxy.zap.utils.ThreadUtils;
 
 /**
  * A {@link javax.swing.tree.TreeModel TreeModel} of (user created) scripts and script templates.
@@ -35,6 +36,7 @@ import javax.swing.tree.DefaultTreeModel;
  * @see #addScript(ScriptWrapper)
  * @see #addTemplate(ScriptWrapper)
  */
+@SuppressWarnings("serial")
 public class ScriptTreeModel extends DefaultTreeModel {
 
     private static final long serialVersionUID = 1L;
@@ -174,7 +176,7 @@ public class ScriptTreeModel extends DefaultTreeModel {
     public void nodeStructureChanged(ScriptWrapper script) {
         ScriptNode node = this.getNodeForScript(script);
         if (node != null) {
-            this.nodeStructureChanged(node);
+            ThreadUtils.invokeAndWaitHandled(() -> nodeStructureChanged(node));
         }
     }
 

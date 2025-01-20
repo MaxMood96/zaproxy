@@ -24,6 +24,7 @@ import java.util.List;
 import javax.swing.table.AbstractTableModel;
 import org.parosproxy.paros.Constant;
 
+@SuppressWarnings("serial")
 public class KeyboardShortcutTableModel extends AbstractTableModel {
 
     private static final long serialVersionUID = 1L;
@@ -46,7 +47,9 @@ public class KeyboardShortcutTableModel extends AbstractTableModel {
         return tokens;
     }
 
-    /** @param shortcuts The shortcuts to set. */
+    /**
+     * @param shortcuts The shortcuts to set.
+     */
     public void setShortcuts(List<KeyboardShortcut> shortcuts) {
         this.tokens = new ArrayList<>(shortcuts.size());
 

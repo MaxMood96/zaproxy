@@ -21,6 +21,10 @@ package org.zaproxy.zap.extension.proxies;
 
 import org.zaproxy.zap.utils.Enableable;
 
+/**
+ * @deprecated (2.12.0) No longer used/needed. It will be removed in a future release.
+ */
+@Deprecated
 public class ProxiesParamProxy extends Enableable {
 
     private String address = "localhost";
@@ -38,6 +42,7 @@ public class ProxiesParamProxy extends Enableable {
      * @see #setRemoveUnsupportedEncodings(boolean)
      */
     private boolean removeUnsupportedEncodings = true;
+
     /** The option that controls whether the proxy should always decode gzipped content or not. */
     private boolean alwaysDecodeGzip = true;
 

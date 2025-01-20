@@ -30,14 +30,16 @@ import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.model.Context;
 
-/** @since 2.3.0 */
+/**
+ * @since 2.3.0
+ */
+@SuppressWarnings("serial")
 public class PopupMenuItemContextInclude extends PopupMenuItemSiteNodeContainer {
 
     private static final long serialVersionUID = 3790264690466717219L;
 
     private List<ExtensionPopupMenuItem> subMenus = new ArrayList<>();
 
-    /** This method initializes */
     public PopupMenuItemContextInclude() {
         super("IncludeInContextX", true);
     }
@@ -80,18 +82,32 @@ public class PopupMenuItemContextInclude extends PopupMenuItemSiteNodeContainer 
         List<Context> contexts = session.getContexts();
         for (Context context : contexts) {
             ExtensionPopupMenuItem piicm = createPopupIncludeInContextMenu(context);
-            piicm.setMenuIndex(this.getMenuIndex());
             mainPopupMenuItems.add(piicm);
             this.subMenus.add(piicm);
         }
         // Add the 'new context' menu
-        ExtensionPopupMenuItem piicm = createPopupIncludeInContextMenu();
+        ExtensionPopupMenuItem piicm = createPopupIncludeInContextMenu(this.getWeight());
         mainPopupMenuItems.add(piicm);
         this.subMenus.add(piicm);
     }
 
+    /**
+     * @deprecated (2.16.0) Override {@link #createPopupIncludeInContextMenu(int)} instead.
+     */
+    @Deprecated(forRemoval = true, since = "2.16.0")
     protected ExtensionPopupMenuItem createPopupIncludeInContextMenu() {
         return new PopupMenuItemIncludeInContext();
+    }
+
+    /**
+     * Called when creating the "New Context" menu item.
+     *
+     * @param weight the weight that the menu item should have.
+     * @return the menu item that creates a new context.
+     * @since 2.15.0
+     */
+    protected ExtensionPopupMenuItem createPopupIncludeInContextMenu(int weight) {
+        return new PopupMenuItemIncludeInContext(weight);
     }
 
     protected ExtensionPopupMenuItem createPopupIncludeInContextMenu(Context context) {

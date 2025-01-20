@@ -38,14 +38,13 @@ import org.parosproxy.paros.extension.ExtensionAdaptor;
 import org.parosproxy.paros.extension.ExtensionHook;
 import org.parosproxy.paros.extension.ExtensionLoader;
 import org.parosproxy.paros.extension.history.ExtensionHistory;
-import org.parosproxy.paros.extension.manualrequest.ExtensionManualRequestEditor;
 import org.parosproxy.paros.model.Model;
 import org.zaproxy.zap.extension.ascan.ExtensionActiveScan;
-import org.zaproxy.zap.extension.history.PopupMenuExportContextURLs;
 import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.utils.DisplayUtils;
 import org.zaproxy.zap.view.ContextExportDialog;
 import org.zaproxy.zap.view.DeleteContextAction;
+import org.zaproxy.zap.view.popup.MenuWeights;
 import org.zaproxy.zap.view.popup.PopupMenuItemContextDataDriven;
 import org.zaproxy.zap.view.popup.PopupMenuItemContextExclude;
 import org.zaproxy.zap.view.popup.PopupMenuItemContextInclude;
@@ -60,7 +59,6 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
     private PopupExcludeFromProxyMenu popupExcludeFromProxyMenu = null;
     private PopupExcludeFromScanMenu popupExcludeFromScanMenu = null;
     private PopupExcludeFromSpiderMenu popupExcludeFromSpiderMenu = null;
-    private PopupMenuResendMessage popupMenuResendMessage = null;
     private PopupMenuShowInHistory popupMenuShowInHistory = null;
     private PopupMenuShowInSites popupMenuShowInSites = null;
     private PopupMenuOpenUrlInBrowser popupMenuOpenUrlInBrowser = null;
@@ -68,16 +66,14 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
     private PopupMenuItemContextSiteInclude popupContextIncludeSiteMenu = null;
     private PopupMenuItemContextExclude popupContextExcludeMenu = null;
     private PopupMenuItemContextDataDriven popupContextDataDrivenMenu = null;
-    private PopupMenuCopyUrls popupMenuCopyUrls = null;
     private PopupContextTreeMenu popupContextTreeMenuInScope = null;
     private PopupContextTreeMenu popupContextTreeMenuOutScope = null;
     private PopupContextTreeMenu popupContextTreeMenuDelete = null;
     private PopupContextTreeMenu popupContextTreeMenuExport;
-    private PopupMenuExportContextURLs popupContextTreeMenuExportUrls;
 
     // Still being developed
     // private PopupMenuShowResponseInBrowser popupMenuShowResponseInBrowser = null;
-    private static Logger log = LogManager.getLogger(ExtensionStdMenus.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExtensionStdMenus.class);
 
     public ExtensionStdMenus() {
         super();
@@ -107,67 +103,30 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                     extensionLoader.isExtensionEnabled(ExtensionHistory.NAME);
             boolean isExtensionActiveScanEnabled =
                     extensionLoader.isExtensionEnabled(ExtensionActiveScan.NAME);
-            // Be careful when changing the menu indexes (and order above) - its easy to get
-            // unexpected
-            // results!
-            int indexMenuItem = 0;
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupExcludeFromProxyMenu(indexMenuItem));
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupExcludeFromProxyMenu());
             if (isExtensionActiveScanEnabled) {
-                extensionHook
-                        .getHookMenu()
-                        .addPopupMenuItem(getPopupExcludeFromScanMenu(indexMenuItem));
+                extensionHook.getHookMenu().addPopupMenuItem(getPopupExcludeFromScanMenu());
             }
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupExcludeFromSpiderMenu(indexMenuItem));
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupContextIncludeMenu(++indexMenuItem));
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupContextIncludeSiteMenu(++indexMenuItem));
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupContextExcludeMenu(++indexMenuItem));
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupContextDataDrivenMenu(indexMenuItem)); // TODO ??
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupExcludeFromSpiderMenu());
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupContextIncludeMenu());
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupContextIncludeSiteMenu());
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupContextExcludeMenu());
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupContextDataDrivenMenu());
 
             if (isExtensionActiveScanEnabled) {
-                extensionHook
-                        .getHookMenu()
-                        .addPopupMenuItem(getPopupMenuActiveScanCustom(++indexMenuItem));
+                extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuActiveScanCustom());
             }
 
             if (isExtensionHistoryEnabled) {
-                extensionHook
-                        .getHookMenu()
-                        .addPopupMenuItem(getPopupMenuResendMessage(++indexMenuItem));
+                extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuShowInHistory());
             }
-            indexMenuItem += 2;
-            if (isExtensionHistoryEnabled) {
-                extensionHook
-                        .getHookMenu()
-                        .addPopupMenuItem(
-                                getPopupMenuShowInHistory(
-                                        indexMenuItem)); // Both are the same index
-            }
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupMenuShowInSites(indexMenuItem)); // on purpose ;)
-            extensionHook
-                    .getHookMenu()
-                    .addPopupMenuItem(getPopupMenuOpenUrlInBrowser(++indexMenuItem));
-            // extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuShowResponseInBrowser(indexMenuItem));
-            extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuCopyUrls(++indexMenuItem));
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuShowInSites());
+            extensionHook.getHookMenu().addPopupMenuItem(getPopupMenuOpenUrlInBrowser());
 
             extensionHook.getHookMenu().addPopupMenuItem(getPopupContextTreeMenuInScope());
             extensionHook.getHookMenu().addPopupMenuItem(getPopupContextTreeMenuOutScope());
             extensionHook.getHookMenu().addPopupMenuItem(getPopupContextTreeMenuDelete());
             extensionHook.getHookMenu().addPopupMenuItem(getPopupContextTreeMenuExport());
-            extensionHook.getHookMenu().addPopupMenuItem(getPopupContextTreeMenuExportUrls());
         }
     }
 
@@ -197,6 +156,7 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                             }
                         }
                     });
+            popupContextTreeMenuInScope.setWeight(MenuWeights.MENU_CONTEXT_SCOPE_WEIGHT);
         }
         return popupContextTreeMenuInScope;
     }
@@ -227,17 +187,9 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                             }
                         }
                     });
+            popupContextTreeMenuOutScope.setWeight(MenuWeights.MENU_CONTEXT_SCOPE_WEIGHT);
         }
         return popupContextTreeMenuOutScope;
-    }
-
-    private PopupMenuExportContextURLs getPopupContextTreeMenuExportUrls() {
-        if (popupContextTreeMenuExportUrls == null) {
-            popupContextTreeMenuExportUrls =
-                    new PopupMenuExportContextURLs(
-                            Constant.messages.getString("context.export.urls.menu"), this);
-        }
-        return popupContextTreeMenuExportUrls;
     }
 
     private PopupContextTreeMenu getPopupContextTreeMenuDelete() {
@@ -265,6 +217,7 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                         }
                     });
             popupContextTreeMenuDelete.setText(Constant.messages.getString("context.delete.popup"));
+            popupContextTreeMenuDelete.setWeight(MenuWeights.MENU_CONTEXT_DELETE_WEIGHT);
         }
         return popupContextTreeMenuDelete;
     }
@@ -294,6 +247,7 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                             exportDialog.setVisible(true);
                         }
                     });
+            popupContextTreeMenuExport.setWeight(MenuWeights.MENU_CONTEXT_EXPORT_WEIGHT);
         }
         return popupContextTreeMenuExport;
     }
@@ -340,7 +294,7 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
             try {
                 return (String) contents.getTransferData(DataFlavor.stringFlavor);
             } catch (UnsupportedFlavorException | IOException e) {
-                log.error("Unable to get data from clipboard");
+                LOGGER.error("Unable to get data from clipboard");
             }
         }
 
@@ -357,7 +311,7 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
         // Ignore
     }
 
-    private PopupMenuActiveScanCustom getPopupMenuActiveScanCustom(int menuIndex) {
+    private PopupMenuActiveScanCustom getPopupMenuActiveScanCustom() {
         if (popupMenuActiveScanCustom == null) {
             popupMenuActiveScanCustom =
                     new PopupMenuActiveScanCustom(
@@ -366,81 +320,55 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
         return popupMenuActiveScanCustom;
     }
 
-    private PopupMenuOpenUrlInBrowser getPopupMenuOpenUrlInBrowser(int menuIndex) {
+    private PopupMenuOpenUrlInBrowser getPopupMenuOpenUrlInBrowser() {
         if (popupMenuOpenUrlInBrowser == null) {
             popupMenuOpenUrlInBrowser =
                     new PopupMenuOpenUrlInBrowser(
                             Constant.messages.getString("history.browser.popup"));
-            popupMenuOpenUrlInBrowser.setMenuIndex(menuIndex);
+            popupMenuOpenUrlInBrowser.setWeight(MenuWeights.MENU_OPEN_SYS_BROWSER_WEIGHT);
+            popupMenuOpenUrlInBrowser.setParentWeight(MenuWeights.MENU_OPEN_SYS_BROWSER_WEIGHT);
         }
         return popupMenuOpenUrlInBrowser;
     }
 
-    private PopupMenuCopyUrls getPopupMenuCopyUrls(int menuIndex) {
-        if (popupMenuCopyUrls == null) {
-            popupMenuCopyUrls =
-                    new PopupMenuCopyUrls(Constant.messages.getString("stdexts.copyurls.popup"));
-            popupMenuCopyUrls.setMenuIndex(menuIndex);
-        }
-        return popupMenuCopyUrls;
-    }
-
-    /*
-     * private PopupMenuShowResponseInBrowser getPopupMenuShowResponseInBrowser(int menuIndex) { if
-     * (popupMenuShowResponseInBrowser == null) { // TODO! popupMenuShowResponseInBrowser = new
-     * PopupMenuShowResponseInBrowser(Constant.messages.getString("history.showresponse.popup"));
-     * popupMenuShowResponseInBrowser.setMenuIndex(menuIndex); } return popupMenuShowResponseInBrowser; }
-     */
-
-    private PopupExcludeFromProxyMenu getPopupExcludeFromProxyMenu(int menuIndex) {
+    private PopupExcludeFromProxyMenu getPopupExcludeFromProxyMenu() {
         if (popupExcludeFromProxyMenu == null) {
             popupExcludeFromProxyMenu = new PopupExcludeFromProxyMenu();
-            popupExcludeFromProxyMenu.setMenuIndex(menuIndex);
+            popupExcludeFromProxyMenu.setWeight(MenuWeights.MENU_EXCLUDE_PROXY_WEIGHT);
+            popupExcludeFromProxyMenu.setParentWeight(MenuWeights.MENU_EXCLUDE_WEIGHT);
         }
         return popupExcludeFromProxyMenu;
     }
 
-    private PopupExcludeFromScanMenu getPopupExcludeFromScanMenu(int menuIndex) {
+    private PopupExcludeFromScanMenu getPopupExcludeFromScanMenu() {
         if (popupExcludeFromScanMenu == null) {
             popupExcludeFromScanMenu = new PopupExcludeFromScanMenu();
-            popupExcludeFromScanMenu.setMenuIndex(menuIndex);
+            popupExcludeFromScanMenu.setWeight(MenuWeights.MENU_EXCLUDE_SCANNER_WEIGHT);
+            popupExcludeFromScanMenu.setParentWeight(MenuWeights.MENU_EXCLUDE_WEIGHT);
         }
         return popupExcludeFromScanMenu;
     }
 
-    private PopupExcludeFromSpiderMenu getPopupExcludeFromSpiderMenu(int menuIndex) {
+    private PopupExcludeFromSpiderMenu getPopupExcludeFromSpiderMenu() {
         if (popupExcludeFromSpiderMenu == null) {
             popupExcludeFromSpiderMenu = new PopupExcludeFromSpiderMenu();
-            popupExcludeFromSpiderMenu.setMenuIndex(menuIndex);
+            popupExcludeFromSpiderMenu.setWeight(MenuWeights.MENU_EXCLUDE_SPIDER_WEIGHT);
+            popupExcludeFromSpiderMenu.setParentWeight(MenuWeights.MENU_EXCLUDE_WEIGHT);
         }
         return popupExcludeFromSpiderMenu;
     }
 
-    private PopupMenuResendMessage getPopupMenuResendMessage(int menuIndex) {
-        if (popupMenuResendMessage == null) {
-            popupMenuResendMessage =
-                    new PopupMenuResendMessage(
-                            Constant.messages.getString("history.resend.popup"),
-                            Control.getSingleton()
-                                    .getExtensionLoader()
-                                    .getExtension(ExtensionHistory.class));
-            popupMenuResendMessage.setMenuIndex(menuIndex);
-            popupMenuResendMessage.setIcon(ExtensionManualRequestEditor.getIcon());
-        }
-        return popupMenuResendMessage;
-    }
-
-    private PopupMenuShowInSites getPopupMenuShowInSites(int menuIndex) {
+    private PopupMenuShowInSites getPopupMenuShowInSites() {
         if (popupMenuShowInSites == null) {
             popupMenuShowInSites =
                     new PopupMenuShowInSites(
                             Constant.messages.getString("sites.showinsites.popup"));
-            popupMenuShowInSites.setMenuIndex(menuIndex);
+            popupMenuShowInSites.setWeight(MenuWeights.MENU_SITES_SHOW_WEIGHT);
         }
         return popupMenuShowInSites;
     }
 
-    private PopupMenuShowInHistory getPopupMenuShowInHistory(int menuIndex) {
+    private PopupMenuShowInHistory getPopupMenuShowInHistory() {
         if (popupMenuShowInHistory == null) {
             popupMenuShowInHistory =
                     new PopupMenuShowInHistory(
@@ -448,39 +376,42 @@ public class ExtensionStdMenus extends ExtensionAdaptor implements ClipboardOwne
                             Control.getSingleton()
                                     .getExtensionLoader()
                                     .getExtension(ExtensionHistory.class));
-            popupMenuShowInHistory.setMenuIndex(menuIndex);
+            popupMenuShowInHistory.setWeight(MenuWeights.MENU_HISTORY_SHOW_WEIGHT);
         }
         return popupMenuShowInHistory;
     }
 
-    private PopupMenuItemContextInclude getPopupContextIncludeMenu(int menuIndex) {
+    private PopupMenuItemContextInclude getPopupContextIncludeMenu() {
         if (popupContextIncludeMenu == null) {
             popupContextIncludeMenu = new PopupMenuItemContextInclude();
-            popupContextIncludeMenu.setParentMenuIndex(menuIndex);
+            popupContextIncludeMenu.setWeight(MenuWeights.MENU_INC_CONTEXT_WEIGHT);
+            popupContextIncludeMenu.setParentWeight(MenuWeights.MENU_INC_CONTEXT_WEIGHT);
         }
         return popupContextIncludeMenu;
     }
 
-    private PopupMenuItemContextSiteInclude getPopupContextIncludeSiteMenu(int menuIndex) {
+    private PopupMenuItemContextSiteInclude getPopupContextIncludeSiteMenu() {
         if (popupContextIncludeSiteMenu == null) {
             popupContextIncludeSiteMenu = new PopupMenuItemContextSiteInclude();
-            popupContextIncludeSiteMenu.setParentMenuIndex(menuIndex);
+            popupContextIncludeSiteMenu.setWeight(MenuWeights.MENU_INC_SITE_CONTEXT_WEIGHT);
+            popupContextIncludeSiteMenu.setParentWeight(MenuWeights.MENU_INC_SITE_CONTEXT_WEIGHT);
         }
         return popupContextIncludeSiteMenu;
     }
 
-    private PopupMenuItemContextExclude getPopupContextExcludeMenu(int menuIndex) {
+    private PopupMenuItemContextExclude getPopupContextExcludeMenu() {
         if (popupContextExcludeMenu == null) {
             popupContextExcludeMenu = new PopupMenuItemContextExclude();
-            popupContextExcludeMenu.setParentMenuIndex(menuIndex);
+            popupContextExcludeMenu.setWeight(MenuWeights.MENU_EXC_CONTEXT_WEIGHT);
+            popupContextExcludeMenu.setParentWeight(MenuWeights.MENU_EXC_CONTEXT_WEIGHT);
         }
         return popupContextExcludeMenu;
     }
 
-    private PopupMenuItemContextDataDriven getPopupContextDataDrivenMenu(int menuIndex) {
+    private PopupMenuItemContextDataDriven getPopupContextDataDrivenMenu() {
         if (popupContextDataDrivenMenu == null) {
             popupContextDataDrivenMenu = new PopupMenuItemContextDataDriven();
-            popupContextDataDrivenMenu.setParentMenuIndex(menuIndex);
+            popupContextDataDrivenMenu.setParentWeight(MenuWeights.MENU_FLAG_CONTEXT_WEIGHT);
         }
         return popupContextDataDrivenMenu;
     }

@@ -23,12 +23,11 @@ import java.awt.Component;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.extension.httppanel.Message;
 import org.zaproxy.zap.extension.httppanel.view.impl.models.http.request.RequestStringHttpPanelViewModel;
+import org.zaproxy.zap.extension.httppanel.view.syntaxhighlight.ContentSplitter;
 import org.zaproxy.zap.extension.httppanel.view.syntaxhighlight.HttpPanelSyntaxHighlightTextArea;
 import org.zaproxy.zap.extension.httppanel.view.syntaxhighlight.HttpPanelSyntaxHighlightTextView;
 import org.zaproxy.zap.extension.httppanel.view.util.CaretVisibilityEnforcerOnFocusGain;
@@ -53,6 +52,7 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
     public static final String NAME = "HttpRequestSyntaxTextView";
 
     private MessageLocationProducerFocusListenerAdapter focusListenerAdapter;
+    private ContentSplitter contentSplitter;
 
     public HttpRequestAllPanelSyntaxHighlightTextView(RequestStringHttpPanelViewModel model) {
         super(model);
@@ -81,7 +81,24 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
 
     @Override
     protected HttpRequestAllPanelSyntaxHighlightTextArea createHttpPanelTextArea() {
-        return new HttpRequestAllPanelSyntaxHighlightTextArea();
+        contentSplitter = new ContentSplitter(getMainPanel());
+        HttpRequestAllPanelSyntaxHighlightTextArea textArea =
+                new HttpRequestAllPanelSyntaxHighlightTextArea(contentSplitter);
+        contentSplitter.setTextArea(textArea);
+        return textArea;
+    }
+
+    @Override
+    protected void setModelData(String data) {
+        if (data.isEmpty()) {
+            super.setModelData(data);
+            return;
+        }
+
+        int separator = data.indexOf("\n\n") + 2;
+        String header = data.substring(0, separator);
+        String body = contentSplitter.process(data.substring(separator));
+        super.setModelData(header + body);
     }
 
     @Override
@@ -89,13 +106,11 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
         return (HttpRequestAllPanelSyntaxHighlightTextArea) super.getHttpPanelTextArea();
     }
 
+    @SuppressWarnings("serial")
     protected static class HttpRequestAllPanelSyntaxHighlightTextArea
             extends HttpPanelSyntaxHighlightTextArea {
 
         private static final long serialVersionUID = 923466158533211593L;
-
-        private static final Logger log =
-                LogManager.getLogger(HttpRequestAllPanelSyntaxHighlightTextArea.class);
 
         // private static final String HTTP_REQUEST_HEADER_AND_BODY = "HTTP Request Header and
         // Body";
@@ -105,9 +120,17 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
 
         private static RequestAllTokenMakerFactory tokenMakerFactory = null;
 
+        private final ContentSplitter contentSplitter;
+
         private CaretVisibilityEnforcerOnFocusGain caretVisibilityEnforcer;
 
         public HttpRequestAllPanelSyntaxHighlightTextArea() {
+            this(null);
+        }
+
+        public HttpRequestAllPanelSyntaxHighlightTextArea(ContentSplitter contentSplitter) {
+            this.contentSplitter = contentSplitter;
+
             // addSyntaxStyle(HTTP_REQUEST_HEADER_AND_BODY,
             // SYNTAX_STYLE_HTTP_REQUEST_HEADER_AND_BODY);
 
@@ -179,6 +202,10 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
                                 getMessage().getRequestHeader().toString(),
                                 textLocation.getStart(),
                                 textLocation.getEnd());
+
+                if (pos.length != 0 && contentSplitter != null) {
+                    pos = contentSplitter.highlightOffsets(pos[0], pos[1]);
+                }
             }
 
             if (pos.length == 0) {
@@ -233,6 +260,10 @@ public class HttpRequestAllPanelSyntaxHighlightTextView extends HttpPanelSyntaxH
                                 sm.getMessage().getRequestHeader().toString(),
                                 sm.getStart(),
                                 sm.getEnd());
+
+                if (pos.length != 0 && contentSplitter != null) {
+                    pos = contentSplitter.highlightOffsets(pos[0], pos[1]);
+                }
             }
 
             if (pos.length == 0) {

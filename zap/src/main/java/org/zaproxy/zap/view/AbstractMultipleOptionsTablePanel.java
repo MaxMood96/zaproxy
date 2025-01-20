@@ -40,7 +40,20 @@ public abstract class AbstractMultipleOptionsTablePanel<E extends EnableableInte
     private JButton disableAllButton;
 
     public AbstractMultipleOptionsTablePanel(AbstractMultipleOptionsTableModel<E> model) {
-        super(model);
+        this(model, true);
+    }
+
+    /**
+     * Constructs an {@code AbstractMultipleOptionsTablePanel} with the given model and whether
+     * modifications are allowed.
+     *
+     * @param model the model.
+     * @param allowModification {@code true} if modifications are allowed, {@code false} otherwise.
+     * @since 2.14.0
+     */
+    protected AbstractMultipleOptionsTablePanel(
+            AbstractMultipleOptionsTableModel<E> model, boolean allowModification) {
+        super(model, allowModification);
 
         final boolean buttonsEnabled = getModel().getRowCount() > 0;
 
@@ -82,7 +95,7 @@ public abstract class AbstractMultipleOptionsTablePanel<E extends EnableableInte
                                 if (TableModelEvent.ALL_COLUMNS == e.getColumn()
                                         || TableModelEvent.INSERT == e.getType()
                                         || TableModelEvent.DELETE == e.getType()) {
-                                    boolean enabled = getModel().getRowCount() > 0;
+                                    boolean enabled = isEnabled() && getModel().getRowCount() > 0;
 
                                     enableAllButton.setEnabled(enabled);
                                     disableAllButton.setEnabled(enabled);

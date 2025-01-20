@@ -62,17 +62,20 @@ import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.view.MainFooterPanel;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.ZAP;
+import org.zaproxy.zap.db.TableAlertTag;
 import org.zaproxy.zap.eventBus.Event;
 import org.zaproxy.zap.extension.XmlReporterExtension;
 import org.zaproxy.zap.extension.help.ExtensionHelp;
 import org.zaproxy.zap.model.SessionStructure;
 import org.zaproxy.zap.model.Target;
+import org.zaproxy.zap.view.popup.MenuWeights;
 
 public class ExtensionAlert extends ExtensionAdaptor
         implements SessionChangedListener, XmlReporterExtension, OptionsChangedListener {
 
     public static final String NAME = "ExtensionAlert";
-    private static final Logger logger = LogManager.getLogger(ExtensionAlert.class);
+    public static final String ALERT_TAG_PREFIX = "ALERT-TAG:";
+    private static final Logger LOGGER = LogManager.getLogger(ExtensionAlert.class);
     private Map<Integer, HistoryReference> hrefs = new HashMap<>();
     private AlertTreeModel treeModel = null;
     private AlertTreeModel filteredTreeModel = null;
@@ -138,21 +141,20 @@ public class ExtensionAlert extends ExtensionAdaptor
         if (filename != null && filename.length() > 0) {
             File file = new File(filename);
             if (!file.isFile() || !file.canRead()) {
-                logger.error("Cannot read alert overrides file " + file.getAbsolutePath());
+                LOGGER.error("Cannot read alert overrides file {}", file.getAbsolutePath());
                 return false;
             }
 
             try (BufferedReader br =
                     Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
                 this.alertOverrides.load(br);
-                logger.info(
-                        "Read "
-                                + this.alertOverrides.size()
-                                + " overrides from "
-                                + file.getAbsolutePath());
+                LOGGER.info(
+                        "Read {} overrides from {}",
+                        this.alertOverrides.size(),
+                        file.getAbsolutePath());
                 return true;
             } catch (IOException e) {
-                logger.error("Failed to read alert overrides file " + file.getAbsolutePath(), e);
+                LOGGER.error("Failed to read alert overrides file {}", file.getAbsolutePath(), e);
                 return false;
             }
         }
@@ -179,16 +181,26 @@ public class ExtensionAlert extends ExtensionAdaptor
         }
 
         try {
-            logger.debug("alertFound " + alert.getName() + " " + alert.getUri());
+            int sourceHistoryId = alert.getSourceHistoryId();
+            LOGGER.debug("alertFound {} {}", alert.getName(), alert.getUri());
             if (ref == null) {
                 ref = alert.getHistoryRef();
             }
             if (ref == null) {
-                ref =
-                        new HistoryReference(
-                                getModel().getSession(),
-                                HistoryReference.TYPE_SCANNER,
-                                alert.getMessage());
+                ref = createHistoryReference(HistoryReference.TYPE_SCANNER, alert.getMessage());
+                alert.setHistoryRef(ref);
+            } else if (HistoryReference.getTemporaryTypes().contains(ref.getHistoryType())) {
+                int tempType = ref.getHistoryType();
+                int permanentType = getPermanentType(tempType);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug(
+                            "Attempting to create an alert for temporary message {}, type will be changed to permanent: {}",
+                            tempType,
+                            permanentType,
+                            new Exception());
+                }
+
+                ref = createHistoryReference(permanentType, alert.getMessage());
                 alert.setHistoryRef(ref);
             }
 
@@ -196,7 +208,8 @@ public class ExtensionAlert extends ExtensionAdaptor
                 alert.setSource(Alert.Source.TOOL);
             }
 
-            alert.setSourceHistoryId(ref.getHistoryId());
+            alert.setSourceHistoryId(sourceHistoryId == 0 ? ref.getHistoryId() : sourceHistoryId);
+            copyHistoryTags(alert, alert.getSourceHistoryId());
 
             hrefs.put(ref.getHistoryId(), ref);
 
@@ -222,7 +235,7 @@ public class ExtensionAlert extends ExtensionAdaptor
 
                 ref.addAlert(alert);
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
 
             addAlertToTree(alert);
@@ -233,22 +246,80 @@ public class ExtensionAlert extends ExtensionAdaptor
             publishAlertEvent(alert, AlertEventPublisher.ALERT_ADDED_EVENT);
 
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
+    }
+
+    /**
+     * Copy any history tags that are tagged with the relevant prefix.
+     *
+     * @param alert the alert
+     * @param sourceHistoryId the source history id
+     * @throws DatabaseException
+     */
+    private static void copyHistoryTags(Alert alert, int sourceHistoryId) throws DatabaseException {
+        // Copy any tags that are intended for alerts
+        List<String> tags = HistoryReference.getTags(sourceHistoryId);
+        if (tags.isEmpty()) {
+            return;
+        }
+        Map<String, String> ctags = new HashMap<>(alert.getTags());
+        for (String tag : tags) {
+            if (tag.startsWith(ALERT_TAG_PREFIX)) {
+                String tagValue = tag.substring(ALERT_TAG_PREFIX.length()).trim();
+                if (!tagValue.isBlank()) {
+                    int eqIndex = tagValue.indexOf('=');
+                    if (eqIndex < 0) {
+                        ctags.put(tagValue, "");
+                    } else if (eqIndex > 0) {
+                        ctags.put(tagValue.substring(0, eqIndex), tagValue.substring(eqIndex + 1));
+                    }
+                }
+            }
+        }
+        alert.setTags(ctags);
     }
 
     private static boolean isInvalid(Alert alert) {
         if (alert.getUri().isEmpty() || alert.getMessage() == null) {
-            logger.error(
-                    "Attempting to raise an alert without URI and/or HTTP message, Plugin ID: "
-                            + alert.getPluginId()
-                            + " Alert Name:"
-                            + alert.getName()
-                            + "\n\t"
-                            + StringUtils.join(Thread.currentThread().getStackTrace(), "\n\t"));
+            LOGGER.error(
+                    "Attempting to raise an alert without URI or HTTP message, Plugin ID: {} Alert Name:{}\n\t{}",
+                    alert.getPluginId(),
+                    alert.getName(),
+                    StringUtils.join(Thread.currentThread().getStackTrace(), "\n\t"));
             return true;
         }
         return false;
+    }
+
+    private HistoryReference createHistoryReference(int historyType, HttpMessage message)
+            throws HttpMalformedHeaderException, DatabaseException {
+        return new HistoryReference(getModel().getSession(), historyType, message);
+    }
+
+    private static int getPermanentType(int historyType) {
+        switch (historyType) {
+            case HistoryReference.TYPE_TEMPORARY:
+                return HistoryReference.TYPE_ZAP_USER;
+            case HistoryReference.TYPE_SCANNER_TEMPORARY:
+                return HistoryReference.TYPE_SCANNER;
+            case HistoryReference.TYPE_AUTHENTICATION:
+                return HistoryReference.TYPE_ZAP_USER;
+            case HistoryReference.TYPE_SPIDER_TASK:
+                return HistoryReference.TYPE_SPIDER;
+            case HistoryReference.TYPE_SEQUENCE_TEMPORARY:
+                return HistoryReference.TYPE_ZAP_USER;
+            case HistoryReference.TYPE_SPIDER_AJAX_TEMPORARY:
+                return HistoryReference.TYPE_SPIDER_AJAX;
+            case HistoryReference.TYPE_SPIDER_TEMPORARY:
+                return HistoryReference.TYPE_SPIDER;
+            case HistoryReference.TYPE_FUZZER_TEMPORARY:
+                return HistoryReference.TYPE_FUZZER;
+            case HistoryReference.TYPE_CLIENT_SPIDER_TEMPORARY:
+                return HistoryReference.TYPE_CLIENT_SPIDER;
+            default:
+                return HistoryReference.TYPE_SCANNER;
+        }
     }
 
     /*
@@ -281,6 +352,18 @@ public class ExtensionAlert extends ExtensionAdaptor
         if (changedReference != null) {
             alert.setReference(applyOverride(alert.getReference(), changedReference));
         }
+        Map<String, String> tags = new HashMap<>(alert.getTags());
+        for (Map.Entry<Object, Object> e : this.alertOverrides.entrySet()) {
+            String propertyKey = e.getKey().toString();
+            if (propertyKey.startsWith(alert.getPluginId() + ".tag.")) {
+                String tagKey = propertyKey.substring((alert.getPluginId() + ".tag.").length());
+                tags.put(
+                        tagKey,
+                        applyOverride(
+                                alert.getTags().getOrDefault(tagKey, ""), e.getValue().toString()));
+            }
+        }
+        alert.setTags(tags);
     }
 
     /*
@@ -301,21 +384,24 @@ public class ExtensionAlert extends ExtensionAdaptor
     }
 
     private void publishAlertEvent(Alert alert, String event) {
-        HistoryReference historyReference = hrefs.get(alert.getSourceHistoryId());
+        int historyId = alert.getHistoryId();
+        HistoryReference historyReference = hrefs.get(historyId);
         if (historyReference == null) {
             historyReference =
                     Control.getSingleton()
                             .getExtensionLoader()
                             .getExtension(ExtensionHistory.class)
-                            .getHistoryReference(alert.getSourceHistoryId());
+                            .getHistoryReference(historyId);
         }
 
         Map<String, String> map = new HashMap<>();
         map.put(AlertEventPublisher.ALERT_ID, Integer.toString(alert.getAlertId()));
+        map.put(AlertEventPublisher.HISTORY_REFERENCE_ID, Integer.toString(historyId));
         map.put(
-                AlertEventPublisher.HISTORY_REFERENCE_ID,
+                AlertEventPublisher.SOURCE_HISTORY_REFERENCE_ID,
                 Integer.toString(alert.getSourceHistoryId()));
         map.put(AlertEventPublisher.NAME, alert.getName());
+        map.put(AlertEventPublisher.PLUGIN_ID, Integer.toString(alert.getPluginId()));
         map.put(AlertEventPublisher.URI, alert.getUri().toString());
         map.put(AlertEventPublisher.PARAM, alert.getParam());
         map.put(AlertEventPublisher.RISK, Integer.toString(alert.getRisk()));
@@ -357,7 +443,7 @@ public class ExtensionAlert extends ExtensionAdaptor
                             }
                         });
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
@@ -438,14 +524,22 @@ public class ExtensionAlert extends ExtensionAdaptor
                         ref.getHistoryId(),
                         alert.getSourceHistoryId(),
                         alert.getSource().getId(),
-                        alert.getAlertRef());
+                        alert.getAlertRef(),
+                        alert.getInputVector());
 
-        alert.setAlertId(recordAlert.getAlertId());
+        int alertId = recordAlert.getAlertId();
+        alert.setAlertId(alertId);
+        alert.setHistoryId(recordAlert.getHistoryId());
+
+        TableAlertTag tableAlertTag = getModel().getDb().getTableAlertTag();
+        for (Map.Entry<String, String> e : alert.getTags().entrySet()) {
+            tableAlertTag.insertOrUpdate(alertId, e.getKey(), e.getValue());
+        }
     }
 
     public void updateAlert(Alert alert) throws HttpMalformedHeaderException, DatabaseException {
-        logger.debug("updateAlert " + alert.getName() + " " + alert.getUri());
-        HistoryReference hRef = hrefs.get(alert.getSourceHistoryId());
+        LOGGER.debug("updateAlert {} {}", alert.getName(), alert.getUri());
+        HistoryReference hRef = hrefs.get(alert.getHistoryId());
         if (hRef != null) {
             updateAlertInDB(alert);
             hRef.updateAlert(alert);
@@ -473,11 +567,25 @@ public class ExtensionAlert extends ExtensionAdaptor
                 alert.getEvidence(),
                 alert.getCweId(),
                 alert.getWascId(),
-                alert.getSourceHistoryId());
+                alert.getSourceHistoryId(),
+                alert.getInputVector());
+
+        int alertId = alert.getAlertId();
+        TableAlertTag tableAlertTag = getModel().getDb().getTableAlertTag();
+        Map<String, String> existingTags = tableAlertTag.getTagsByAlertId(alertId);
+        Map<String, String> newTags = alert.getTags();
+        for (Map.Entry<String, String> e : existingTags.entrySet()) {
+            if (!newTags.containsKey(e.getKey())) {
+                tableAlertTag.delete(alertId, e.getKey());
+            }
+        }
+        for (Map.Entry<String, String> e : newTags.entrySet()) {
+            tableAlertTag.insertOrUpdate(alertId, e.getKey(), e.getValue());
+        }
     }
 
     public void displayAlert(Alert alert) {
-        logger.debug("displayAlert " + alert.getName() + " " + alert.getUri());
+        LOGGER.debug("displayAlert {} {}", alert.getName(), alert.getUri());
         this.alertPanel.getAlertViewPanel().displayAlert(alert);
     }
 
@@ -498,7 +606,7 @@ public class ExtensionAlert extends ExtensionAdaptor
                             }
                         });
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
@@ -533,7 +641,7 @@ public class ExtensionAlert extends ExtensionAdaptor
                             }
                         });
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
@@ -553,7 +661,7 @@ public class ExtensionAlert extends ExtensionAdaptor
         try {
             refreshAlert(session);
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
         setTreeModel(getTreeModel());
     }
@@ -565,6 +673,7 @@ public class ExtensionAlert extends ExtensionAdaptor
         SiteMap siteTree = this.getModel().getSession().getSiteTree();
 
         TableAlert tableAlert = getModel().getDb().getTableAlert();
+        TableAlertTag tableAlertTag = getModel().getDb().getTableAlertTag();
         // TODO this doesn't work, but should be used when its fixed :/
         // Vector<Integer> v =
         // tableAlert.getAlertListBySession(Model.getSingleton().getSession().getSessionId());
@@ -592,6 +701,7 @@ public class ExtensionAlert extends ExtensionAdaptor
             } else {
                 alert = new Alert(recAlert);
             }
+            alert.setTags(tableAlertTag.getTagsByAlertId(alertId));
             historyReference = alert.getHistoryRef();
             if (historyReference != null) {
                 // The ref can be null if hrefs are purged
@@ -609,6 +719,7 @@ public class ExtensionAlert extends ExtensionAdaptor
         if (popupMenuAlertAdd == null) {
             popupMenuAlertAdd =
                     new PopupMenuAlert(Constant.messages.getString("alert.add.popup"), this);
+            popupMenuAlertAdd.setWeight(MenuWeights.MENU_NEW_ALERT_WEIGHT);
         }
         return popupMenuAlertAdd;
     }
@@ -645,17 +756,19 @@ public class ExtensionAlert extends ExtensionAdaptor
         if (popupMenuShowAlerts == null) {
             popupMenuShowAlerts =
                     new PopupMenuShowAlerts(Constant.messages.getString("alerts.view.popup"), this);
+            popupMenuShowAlerts.setWeight(MenuWeights.MENU_ALERTS_NODE_WEIGHT);
         }
         return popupMenuShowAlerts;
     }
 
     public void deleteAlert(Alert alert) {
-        logger.debug("deleteAlert " + alert.getName() + " " + alert.getUri());
+        LOGGER.debug("deleteAlert {} {}", alert.getName(), alert.getUri());
 
         try {
             getModel().getDb().getTableAlert().deleteAlert(alert.getAlertId());
+            getModel().getDb().getTableAlertTag().deleteAllTagsForAlert(alert.getAlertId());
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         deleteAlertFromDisplay(alert);
@@ -665,8 +778,9 @@ public class ExtensionAlert extends ExtensionAdaptor
     public void deleteAllAlerts() {
         try {
             getModel().getDb().getTableAlert().deleteAllAlerts();
+            getModel().getDb().getTableAlertTag().deleteAllTags();
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         if (!Constant.isLowMemoryOptionSet()) {
@@ -713,7 +827,7 @@ public class ExtensionAlert extends ExtensionAdaptor
                             }
                         });
             } catch (Exception e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
@@ -752,8 +866,9 @@ public class ExtensionAlert extends ExtensionAdaptor
 
                 try {
                     getModel().getDb().getTableAlert().deleteAlert(alert.getAlertId());
+                    getModel().getDb().getTableAlertTag().deleteAllTagsForAlert(alert.getAlertId());
                 } catch (DatabaseException e) {
-                    logger.error("Failed to delete alert with ID: " + alert.getAlertId(), e);
+                    LOGGER.error("Failed to delete alert with ID: {}", alert.getAlertId(), e);
                 }
             }
 
@@ -826,6 +941,7 @@ public class ExtensionAlert extends ExtensionAdaptor
         List<Alert> allAlerts = new ArrayList<>();
 
         TableAlert tableAlert = getModel().getDb().getTableAlert();
+        TableAlertTag tableAlertTag = getModel().getDb().getTableAlertTag();
         Vector<Integer> v;
         try {
             // TODO this doesn't work, but should be used when its fixed :/
@@ -840,12 +956,13 @@ public class ExtensionAlert extends ExtensionAdaptor
                 if (alert.getHistoryRef() != null) {
                     // Only use the alert if it has a history reference.
                     if (!allAlerts.contains(alert)) {
+                        alert.setTags(tableAlertTag.getTagsByAlertId(alertId));
                         allAlerts.add(alert);
                     }
                 }
             }
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
         return allAlerts;
     }
@@ -1074,6 +1191,10 @@ public class ExtensionAlert extends ExtensionAdaptor
             dialogAlertAdd.setVisible(true);
             dialogAlertAdd.setAlert(alert);
         }
+    }
+
+    AlertAddDialog getDialogAlertAdd() {
+        return dialogAlertAdd;
     }
 
     /** Part of the core set of features that should be supported by all db types */

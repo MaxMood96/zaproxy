@@ -22,11 +22,16 @@ package org.zaproxy.zap;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import org.apache.commons.io.FileUtils;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.parosproxy.paros.CommandLine;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.Model;
 import org.zaproxy.zap.control.ControlOverrides;
+import org.zaproxy.zap.utils.Stats;
 
 /**
  * ZAP's bootstrap process.
@@ -42,6 +47,8 @@ import org.zaproxy.zap.control.ControlOverrides;
  */
 abstract class ZapBootstrap {
 
+    private static final Logger LOGGER = LogManager.getLogger(ZapBootstrap.class);
+
     private final CommandLine args;
     private final ControlOverrides controlOverrides;
 
@@ -49,8 +56,6 @@ abstract class ZapBootstrap {
         this.args = args;
 
         controlOverrides = new ControlOverrides();
-        controlOverrides.setProxyPort(getArgs().getPort());
-        controlOverrides.setProxyHost(getArgs().getHost());
         controlOverrides.setOrderedConfigs(getArgs().getOrderedConfigs());
         controlOverrides.setExperimentalDb(getArgs().isExperimentalDb());
     }
@@ -74,11 +79,19 @@ abstract class ZapBootstrap {
             disableStdOutLog();
         }
 
+        setLogLevel(getArgs().getLogLevel());
+
         return 0;
     }
 
     protected static void disableStdOutLog() {
         LoggerContext.getContext().getConfiguration().getRootLogger().removeAppender("stdout");
+    }
+
+    private static void setLogLevel(Level level) {
+        var config = LoggerContext.getContext().getConfiguration();
+        config.getLoggerConfig("org.parosproxy.paros").setLevel(level);
+        config.getLoggerConfig("org.zaproxy").setLevel(level);
     }
 
     /**
@@ -121,13 +134,32 @@ abstract class ZapBootstrap {
      * @return the starting message
      */
     protected static String getStartingMessage() {
+        if ("root".equals(System.getProperty("user.name"))) {
+            LOGGER.warn("ZAP is being run using the root user - this is NOT recommended!");
+        }
         DateFormat dateFormat =
                 SimpleDateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM);
         StringBuilder strBuilder = new StringBuilder(200);
         strBuilder.append(Constant.PROGRAM_NAME).append(' ').append(Constant.PROGRAM_VERSION);
         strBuilder.append(" started ");
         strBuilder.append(dateFormat.format(new Date()));
-        strBuilder.append(" with home ").append(Constant.getZapHome());
+        strBuilder.append(" with home: ").append(Constant.getZapHome());
+        strBuilder.append(" cores: ").append(Runtime.getRuntime().availableProcessors());
+        strBuilder
+                .append(" maxMemory: ")
+                .append(FileUtils.byteCountToDisplaySize(Runtime.getRuntime().maxMemory()));
         return strBuilder.toString();
+    }
+
+    /**
+     * Record startup stats
+     *
+     * @since 2.14.0
+     */
+    protected void recordStartStats() {
+        getControlOverrides()
+                .getOrderedConfigs()
+                .keySet()
+                .forEach(k -> Stats.incCounter("stats.config." + k));
     }
 }

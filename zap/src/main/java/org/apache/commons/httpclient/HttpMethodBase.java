@@ -53,7 +53,7 @@ import org.apache.commons.httpclient.params.HttpMethodParams;
 import org.apache.commons.httpclient.protocol.Protocol;
 import org.apache.commons.httpclient.util.EncodingUtil;
 import org.apache.commons.httpclient.util.ExceptionUtil;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.parosproxy.paros.network.HttpHeader;
@@ -69,6 +69,7 @@ import org.parosproxy.paros.network.HttpHeader;
  *  - Change the way cookie headers are handled when using forced user mode, put all the headers in a single line see ISSUE 1874
  *  - Do not add a User-Agent header by default.
  *  - Update Host header in place.
+ *  - Replace usages of StringBuffer with StringBuilder.
  * 
  */
 /**
@@ -117,7 +118,9 @@ import org.parosproxy.paros.network.HttpHeader;
  * @author Christian Kohlschuetter
  *
  * @version $Revision: 775455 $ $Date: 2009-05-16 13:28:40 +0100 (Sat, 16 May 2009) $
+ * @deprecated (2.12.0) Implementation details, do not use.
  */
+@Deprecated
 public abstract class HttpMethodBase implements HttpMethod {
 
     private static final String HOST_HEADER = "Host";
@@ -272,7 +275,7 @@ public abstract class HttpMethodBase implements HttpMethod {
      */
     @Override
     public URI getURI() throws URIException {
-        StringBuffer buffer = new StringBuffer();
+        StringBuilder buffer = new StringBuilder();
         if (this.httphost != null) {
             buffer.append(this.httphost.getProtocol().getScheme());
             buffer.append("://");
@@ -1659,7 +1662,7 @@ public abstract class HttpMethodBase implements HttpMethod {
         LOG.trace("enter HttpMethodBase.generateRequestLine(HttpConnection, "
             + "String, String, String, String)");
 
-        StringBuffer buf = new StringBuffer();
+        StringBuilder buf = new StringBuilder();
         // Append method name
         buf.append(name);
         buf.append(" ");

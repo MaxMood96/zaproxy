@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<install4j version="8.0.7" transformSequenceNumber="8">
-  <application name="OWASP Zed Attack Proxy" applicationId="OWASP ZAP" mediaFilePattern="${compiler:sys.shortName}_${compiler:sys.version}_${compiler:sys.platform}" shortName="ZAP" publisher="OWASP ZAP" publisherWeb="https://www.zaproxy.org/" version="${compiler:version}" allPathsRelative="true" backupOnSave="true" macVolumeId="1369b1f423bb47f8" javaMinVersion="1.8">
+<install4j version="10.0.6" transformSequenceNumber="10">
+  <application name="Zed Attack Proxy by Checkmarx" applicationId="ZAP" mediaFilePattern="${compiler:sys.shortName}_${compiler:sys.version}_${compiler:sys.platform}" shortName="ZAP" publisher="ZAP" publisherWeb="https://www.zaproxy.org/" version="${compiler:version}" allPathsRelative="true" backupOnSave="true" macVolumeId="1369b1f423bb47f8" javaMinVersion="17">
     <languages skipLanguageSelection="true">
       <principalLanguage id="en" customLocalizationFile="./resources/Messages.properties" />
       <additionalLanguages>
@@ -20,7 +20,7 @@
     </languages>
     <variables>
       <variable name="longName" value="Zed Attack Proxy" />
-      <variable name="groupName" value="OWASP" />
+      <variable name="groupName" value="ZAP" />
       <variable name="unixDirName" value="zaproxy" />
       <variable name="symlinkDir" value="/usr/local/bin" />
     </variables>
@@ -50,7 +50,7 @@
     </entries>
   </files>
   <launchers>
-    <launcher name="Linux" id="26" external="true" menuName="OWASP ZAP" externalFile="zap.sh" />
+    <launcher name="Linux" id="26" external="true" menuName="ZAP" externalFile="zap.sh" />
     <launcher name="Windows (.exe)" id="79" external="true" menuName="${compiler:sys.shortName} ${compiler:sys.version}" externalFile="ZAP.exe" />
   </launchers>
   <installerGui>
@@ -87,6 +87,7 @@
               <action id="13" beanClass="com.install4j.runtime.beans.actions.misc.RequestPrivilegesAction" actionElevationType="none">
                 <serializedBean>
                   <property name="failIfNotRootUnix" type="boolean" value="true" />
+                  <property name="linuxPrivilegeRequirement" type="enum" class="com.install4j.runtime.beans.actions.misc.PrivilegeRequirement" value="ROOT" />
                   <property name="obtainIfAdminMac" type="boolean" value="true" />
                   <property name="obtainIfNormalMac" type="boolean" value="true" />
                   <property name="obtainIfNormalWin" type="boolean" value="true" />
@@ -129,6 +130,21 @@ if (Util.isWindows()) {
 } else if (Util.isLinux()) {
     context.setVariable("sys.symlinkDir", context.getCompilerVariable("symlinkDir"));
 } 
+
+return true;</property>
+                    </object>
+                  </property>
+                </serializedBean>
+              </action>
+              <action id="821" beanClass="com.install4j.runtime.beans.actions.control.RunScriptAction" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="script">
+                    <object class="com.install4j.api.beans.ScriptProperty">
+                      <property name="value" type="string">ApplicationRegistry.ApplicationInfo[] applicationInfos = ApplicationRegistry.getApplicationInfoById("OWASP ZAP");
+
+if (applicationInfos.length &gt; 0) {
+   context.setVariable("uninstallOldDir", applicationInfos[0].getInstallationDirectory().getPath());
+}
 
 return true;</property>
                     </object>
@@ -186,7 +202,7 @@ return console.askOkCancel(message, true);
               <property name="title" type="string">${i18n:zap.installer.uninstalloldversion.screentitle}</property>
             </serializedBean>
             <condition>context.getVariable("innoUninstaller") != null</condition>
-            <preActivation>context.getWizardContext().setNextButtonText(context.getMessage("zap.installer.uninstalloldversion.button"));</preActivation>
+            <preActivation>context.getWizardContext().setControlButtonText(ControlButtonType.NEXT, context.getMessage("zap.installer.uninstalloldversion.button"));</preActivation>
             <actions>
               <action id="325" beanClass="com.install4j.runtime.beans.actions.misc.RunExecutableAction" actionElevationType="elevated" rollbackBarrier="true" failureStrategy="askQuit" errorMessage="${i18n:zap.installer.uninstalloldversion.errormsg}">
                 <serializedBean>
@@ -482,7 +498,7 @@ return true;</validation>
             </serializedBean>
             <preActivation>import java.text.MessageFormat;
 
-context.getWizardContext().setNextButtonText(context.getMessage("ButtonInstall"));
+context.getWizardContext().setControlButtonText(ControlButtonType.NEXT, context.getMessage("ButtonInstall"));
 
 StringBuilder summaryBuilder = new StringBuilder(500);
 
@@ -575,6 +591,16 @@ return;</preActivation>
           </screen>
           <screen id="8" beanClass="com.install4j.runtime.beans.screens.InstallationScreen" rollbackBarrier="true">
             <actions>
+              <action id="820" beanClass="com.install4j.runtime.beans.actions.UninstallPreviousAction" actionElevationType="none" rollbackBarrierExitCode="0">
+                <serializedBean>
+                  <property name="installationDirectory">
+                    <object class="java.io.File">
+                      <string>${installer:uninstallOldDir}</string>
+                    </object>
+                  </property>
+                  <property name="onlyIfSameApplicationId" type="boolean" value="false" />
+                </serializedBean>
+              </action>
               <action id="169" beanClass="com.install4j.runtime.beans.actions.UninstallPreviousAction" actionElevationType="none" />
               <action id="9" beanClass="com.install4j.runtime.beans.actions.InstallFilesAction" actionElevationType="elevated" failureStrategy="quit" errorMessage="${i18n:FileCorrupted}" />
               <action id="10" beanClass="com.install4j.runtime.beans.actions.desktop.CreateProgramGroupAction" actionElevationType="elevated">
@@ -605,7 +631,7 @@ return;</preActivation>
                     </object>
                   </property>
                   <property name="macSingleBundleTarget" type="boolean" value="false" />
-                  <property name="name" type="string">${compiler:groupName} ${compiler:sys.shortName} ${compiler:sys.version}</property>
+                  <property name="name" type="string">${compiler:sys.shortName} ${compiler:sys.version}</property>
                   <property name="unixIconFile">
                     <object class="com.install4j.api.beans.ExternalFile">
                       <string>../resources/resource/zap1024x1024.png</string>
@@ -652,7 +678,7 @@ return;</preActivation>
                   <property name="escaped" type="boolean" value="false" />
                   <property name="file">
                     <object class="java.io.File">
-                      <string>${compiler:groupName} ${compiler:sys.shortName}.desktop</string>
+                      <string>${compiler:sys.shortName}.desktop</string>
                     </object>
                   </property>
                   <property name="logText" type="boolean" value="false" />
@@ -795,11 +821,19 @@ return console.askYesNo(message, true);
           <group id="804" beanClass="com.install4j.runtime.beans.groups.VerticalFormComponentGroup" useExternalParametrization="true" externalParametrizationName="Customize banner image" externalParametrizationMode="include">
             <serializedBean>
               <property name="backgroundColor">
-                <object class="java.awt.Color">
-                  <int>255</int>
-                  <int>255</int>
-                  <int>255</int>
-                  <int>255</int>
+                <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                  <object class="java.awt.Color">
+                    <int>255</int>
+                    <int>255</int>
+                    <int>255</int>
+                    <int>255</int>
+                  </object>
+                  <object class="java.awt.Color">
+                    <int>49</int>
+                    <int>52</int>
+                    <int>53</int>
+                    <int>255</int>
+                  </object>
                 </object>
               </property>
               <property name="borderSides">
@@ -808,11 +842,19 @@ return console.askYesNo(message, true);
                 </object>
               </property>
               <property name="imageEdgeBackgroundColor">
-                <object class="java.awt.Color">
-                  <int>25</int>
-                  <int>143</int>
-                  <int>220</int>
-                  <int>255</int>
+                <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                  <object class="java.awt.Color">
+                    <int>25</int>
+                    <int>143</int>
+                    <int>220</int>
+                    <int>255</int>
+                  </object>
+                  <object class="java.awt.Color">
+                    <int>0</int>
+                    <int>74</int>
+                    <int>151</int>
+                    <int>255</int>
+                  </object>
                 </object>
               </property>
               <property name="imageEdgeBorder" type="boolean" value="true" />
@@ -866,11 +908,19 @@ return console.askYesNo(message, true);
               <group id="811" beanClass="com.install4j.runtime.beans.groups.VerticalFormComponentGroup" useExternalParametrization="true" externalParametrizationName="Customize title bar" externalParametrizationMode="include">
                 <serializedBean>
                   <property name="backgroundColor">
-                    <object class="java.awt.Color">
-                      <int>255</int>
-                      <int>255</int>
-                      <int>255</int>
-                      <int>255</int>
+                    <object class="com.install4j.runtime.beans.LightOrDarkColor">
+                      <object class="java.awt.Color">
+                        <int>255</int>
+                        <int>255</int>
+                        <int>255</int>
+                        <int>255</int>
+                      </object>
+                      <object class="java.awt.Color">
+                        <int>49</int>
+                        <int>52</int>
+                        <int>53</int>
+                        <int>255</int>
+                      </object>
                     </object>
                   </property>
                   <property name="borderSides">
@@ -984,8 +1034,9 @@ return console.askYesNo(message, true);
         <entry filesetId="671" />
         <entry filesetId="679" />
       </exclude>
+      <jreBundle jreBundleSource="none" />
     </unixInstaller>
-    <windows name="Windows 32bit" id="30" mediaFileName="${compiler:sys.shortName}_${compiler:sys.version}_${compiler:sys.platform}" installDir="${compiler:groupName}\${compiler:longName}" jreBitType="32">
+    <windows name="Windows 32bit" id="30" mediaFileName="${compiler:sys.shortName}_${compiler:sys.version}_${compiler:sys.platform}" installDir="${compiler:groupName}\${compiler:longName}" architecture="32">
       <excludedLaunchers>
         <launcher id="26" />
       </excludedLaunchers>
@@ -993,8 +1044,9 @@ return console.askYesNo(message, true);
         <entry filesetId="679" />
         <entry filesetId="674" />
       </exclude>
+      <jreBundle jreBundleSource="none" />
     </windows>
-    <windows name="Windows 64bit" id="529" mediaFileName="${compiler:sys.shortName}_${compiler:sys.version}_windows" installDir="${compiler:groupName}\${compiler:longName}">
+    <windows name="Windows 64bit" id="529" mediaFileName="${compiler:sys.shortName}_${compiler:sys.version}_windows" installDir="${compiler:groupName}\${compiler:longName}" architecture="64">
       <excludedLaunchers>
         <launcher id="26" />
       </excludedLaunchers>
@@ -1002,6 +1054,7 @@ return console.askYesNo(message, true);
         <entry filesetId="671" />
         <entry filesetId="674" />
       </exclude>
+      <jreBundle jreBundleSource="none" />
     </windows>
   </mediaSets>
 </install4j>

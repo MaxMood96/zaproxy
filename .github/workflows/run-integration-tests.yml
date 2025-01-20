@@ -10,29 +10,55 @@ jobs:
     name: Build, Push and Run Docker Image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       -
-        name: Login to DockerHub
-        uses: docker/login-action@v1 
-        with:
-          username: zapbot
-          password: ${{ secrets.ZAPBOT_DOCKER_TOKEN }}
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
       -
-        name: Build Docker image
-        uses: docker/build-push-action@v2
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@6524bf65af31da8d45b59e8c27de4bd072b392f5 # v3.8.0
+      -
+        name: Login to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
-          load: true
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      -
+        name: Build and push Docker image
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355 # v6.10.0
+        with:
           context: docker
           file: docker/Dockerfile-tests
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
           tags: |
-            owasp/zap2docker-tests:latest
-          build-args: |
-            WEBSWING_TOKEN=${{ secrets.WEBSWING_TOKEN }}
-      - 
-        run: docker push owasp/zap2docker-tests:latest
+            ghcr.io/zaproxy/zaproxy-tests
+          secrets: |
+            webswing_url=${{ secrets.WEBSWING_URL }}
+          annotations: |
+            index:org.opencontainers.image.source=https://github.com/zaproxy/zaproxy
+            index:org.opencontainers.image.description=Docker image used for ZAP integration tests.
+            index:org.opencontainers.image.licenses=Apache-2.0
       - 
         name: Run install tests
-        run: docker run --rm -t owasp/zap2docker-tests:latest wrk/install_tests.sh
+        if: ${{ ! cancelled() }}
+        run: docker run --rm -t ghcr.io/zaproxy/zaproxy-tests wrk/install_tests.sh
       - 
+        name: Run python tests
+        if: ${{ ! cancelled() }}
+        run: docker run --rm -t ghcr.io/zaproxy/zaproxy-tests wrk/python_tests.sh
+      - 
+        name: Automation Framework context tests
+        if: ${{ ! cancelled() }}
+        run: docker run --rm -t ghcr.io/zaproxy/zaproxy-tests wrk/af_context_tests.sh
+      - 
+        name: Automation Framework plan tests
+        if: ${{ ! cancelled() }}
+        run: docker run --rm -t ghcr.io/zaproxy/zaproxy-tests wrk/af_plan_tests.sh
+      -
+        # Run these last as they are most likely to fail
         name: Run baseline tests
-        run: docker run --rm -t owasp/zap2docker-tests:latest wrk/baseline_tests.sh
+        if: ${{ ! cancelled() }}
+        run: docker run --rm -t ghcr.io/zaproxy/zaproxy-tests wrk/baseline_tests.sh

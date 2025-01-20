@@ -25,14 +25,16 @@ import org.apache.commons.configuration.ConversionException;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.common.AbstractParam;
 import org.parosproxy.paros.model.HistoryReference;
 import org.zaproxy.zap.extension.api.ZapApiIgnore;
-import org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner;
 
+@SuppressWarnings("removal")
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class PassiveScanParam extends AbstractParam {
 
-    private static final Logger logger = LogManager.getLogger(PassiveScanParam.class);
+    private static final Logger LOGGER = LogManager.getLogger(PassiveScanParam.class);
 
     static final String PASSIVE_SCANS_BASE_KEY = "pscans";
     private static final String ALL_AUTO_TAG_SCANNERS_KEY =
@@ -54,11 +56,15 @@ public class PassiveScanParam extends AbstractParam {
             PASSIVE_SCANS_BASE_KEY + ".scanOnlyInScope";
     private static final String SCAN_FUZZER_MESSAGES_KEY =
             PASSIVE_SCANS_BASE_KEY + ".scanFuzzerMessages";
+    private static final String PASSIVE_SCAN_THREADS = PASSIVE_SCANS_BASE_KEY + ".threads";
     private static final String MAX_ALERTS_PER_RULE = PASSIVE_SCANS_BASE_KEY + ".maxAlertsPerRule";
     private static final String MAX_BODY_SIZE_IN_BYTES =
             PASSIVE_SCANS_BASE_KEY + ".maxBodySizeInBytes";
 
-    private List<RegexAutoTagScanner> autoTagScanners = new ArrayList<>(0);
+    @Deprecated public static final int PASSIVE_SCAN_DEFAULT_THREADS = 4;
+
+    private List<org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner> autoTagScanners =
+            new ArrayList<>(0);
 
     private boolean confirmRemoveAutoTagScanner = true;
 
@@ -87,6 +93,8 @@ public class PassiveScanParam extends AbstractParam {
 
     private int maxBodySizeInBytesToScan;
 
+    private int passiveScanThreads;
+
     public PassiveScanParam() {}
 
     @Override
@@ -102,11 +110,14 @@ public class PassiveScanParam extends AbstractParam {
                 if (!"".equals(name) && !tempListNames.contains(name)) {
                     tempListNames.add(name);
 
-                    RegexAutoTagScanner app =
-                            new RegexAutoTagScanner(
+                    org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner app =
+                            new org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner(
                                     sub.getString(AUTO_TAG_SCANNER_NAME_KEY),
-                                    RegexAutoTagScanner.TYPE.valueOf(
-                                            sub.getString(AUTO_TAG_SCANNER_TYPE_KEY)),
+                                    getEnum(
+                                            AUTO_TAG_SCANNER_TYPE_KEY,
+                                            org.zaproxy.zap.extension.pscan.scanner
+                                                    .RegexAutoTagScanner.TYPE
+                                                    .TAG),
                                     sub.getString(AUTO_TAG_SCANNER_CONFIG_KEY),
                                     sub.getString(AUTO_TAG_SCANNER_REQ_URL_REGEX_KEY),
                                     sub.getString(AUTO_TAG_SCANNER_REQ_HEAD_REGEX_KEY),
@@ -118,25 +129,33 @@ public class PassiveScanParam extends AbstractParam {
                 }
             }
         } catch (ConversionException e) {
-            logger.error("Error while loading the auto tag scanners: " + e.getMessage(), e);
+            LOGGER.error("Error while loading the auto tag scanners: {}", e.getMessage(), e);
         }
 
         this.confirmRemoveAutoTagScanner = getBoolean(CONFIRM_REMOVE_AUTO_TAG_SCANNER_KEY, true);
         this.scanOnlyInScope = getBoolean(SCAN_ONLY_IN_SCOPE_KEY, false);
         this.scanFuzzerMessages = getBoolean(SCAN_FUZZER_MESSAGES_KEY, false);
         setFuzzerOptin(this.scanFuzzerMessages);
+        // Default threads to number of processors as passive scanning is not blocked on I/O
+        this.passiveScanThreads =
+                this.getInt(PASSIVE_SCAN_THREADS, Constant.getDefaultThreadCount() / 2);
+        if (this.passiveScanThreads <= 0) {
+            // Must be greater that zero
+            this.passiveScanThreads = Constant.getDefaultThreadCount() / 2;
+        }
         this.maxAlertsPerRule = this.getInt(MAX_ALERTS_PER_RULE, 0);
         this.maxBodySizeInBytesToScan = this.getInt(MAX_BODY_SIZE_IN_BYTES, 0);
     }
 
-    public void setAutoTagScanners(List<RegexAutoTagScanner> scanners) {
+    public void setAutoTagScanners(
+            List<org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner> scanners) {
         this.autoTagScanners = scanners;
 
         ((HierarchicalConfiguration) getConfig()).clearTree(ALL_AUTO_TAG_SCANNERS_KEY);
 
         for (int i = 0, size = scanners.size(); i < size; ++i) {
             String elementBaseKey = ALL_AUTO_TAG_SCANNERS_KEY + "(" + i + ").";
-            RegexAutoTagScanner scanner = scanners.get(i);
+            org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner scanner = scanners.get(i);
 
             getConfig().setProperty(elementBaseKey + AUTO_TAG_SCANNER_NAME_KEY, scanner.getName());
             getConfig()
@@ -167,7 +186,7 @@ public class PassiveScanParam extends AbstractParam {
         }
     }
 
-    public List<RegexAutoTagScanner> getAutoTagScanners() {
+    public List<org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner> getAutoTagScanners() {
         return autoTagScanners;
     }
 
@@ -230,15 +249,16 @@ public class PassiveScanParam extends AbstractParam {
      *     types should be disabled (removed)
      * @since 2.8.0
      * @see #isScanFuzzerMessages()
-     * @see #setScanFuzzerMessages()
+     * @see #setScanFuzzerMessages(boolean)
      */
     private void setFuzzerOptin(boolean shouldOptin) {
         if (shouldOptin) {
-            PassiveScanThread.addApplicableHistoryType(HistoryReference.TYPE_FUZZER);
-            PassiveScanThread.addApplicableHistoryType(HistoryReference.TYPE_FUZZER_TEMPORARY);
+            PassiveScanTaskHelper.addApplicableHistoryType(HistoryReference.TYPE_FUZZER);
+            PassiveScanTaskHelper.addApplicableHistoryType(HistoryReference.TYPE_FUZZER_TEMPORARY);
         } else {
-            PassiveScanThread.removeApplicableHistoryType(HistoryReference.TYPE_FUZZER);
-            PassiveScanThread.removeApplicableHistoryType(HistoryReference.TYPE_FUZZER_TEMPORARY);
+            PassiveScanTaskHelper.removeApplicableHistoryType(HistoryReference.TYPE_FUZZER);
+            PassiveScanTaskHelper.removeApplicableHistoryType(
+                    HistoryReference.TYPE_FUZZER_TEMPORARY);
         }
     }
 
@@ -270,5 +290,27 @@ public class PassiveScanParam extends AbstractParam {
     public void setMaxBodySizeInBytesToScan(int maxBodySizeInBytesToScan) {
         this.maxBodySizeInBytesToScan = maxBodySizeInBytesToScan;
         getConfig().setProperty(MAX_BODY_SIZE_IN_BYTES, maxBodySizeInBytesToScan);
+    }
+
+    /**
+     * Get the number of passive scan threads
+     *
+     * @since 2.12.0
+     */
+    public int getPassiveScanThreads() {
+        return passiveScanThreads;
+    }
+
+    /**
+     * Set the number of passive scan threads
+     *
+     * @param passiveScanThreads the number of passive scan threads, must be &gt; 0
+     * @since 2.12.0
+     */
+    public void setPassiveScanThreads(int passiveScanThreads) {
+        if (passiveScanThreads > 0) {
+            this.passiveScanThreads = passiveScanThreads;
+            getConfig().setProperty(PASSIVE_SCAN_THREADS, passiveScanThreads);
+        }
     }
 }

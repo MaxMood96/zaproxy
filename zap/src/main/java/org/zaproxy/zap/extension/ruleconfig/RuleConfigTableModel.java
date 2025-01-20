@@ -24,6 +24,7 @@ import java.util.List;
 import javax.swing.table.AbstractTableModel;
 import org.parosproxy.paros.Constant;
 
+@SuppressWarnings("serial")
 public class RuleConfigTableModel extends AbstractTableModel {
 
     private static final long serialVersionUID = 1L;
@@ -46,7 +47,9 @@ public class RuleConfigTableModel extends AbstractTableModel {
         return rcs;
     }
 
-    /** @param rcs The ruleconfigs to set. */
+    /**
+     * @param rcs The ruleconfigs to set.
+     */
     public void setRuleConfigs(List<RuleConfig> rcs) {
         this.rcs = new ArrayList<>(rcs.size());
 

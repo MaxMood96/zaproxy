@@ -38,6 +38,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.commons.httpclient.URI;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -46,6 +48,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.parosproxy.paros.model.HistoryReference;
+import org.parosproxy.paros.network.HttpMessage.HttpEncodingsHandler;
 import org.zaproxy.zap.extension.httpsessions.HttpSession;
 import org.zaproxy.zap.network.HttpEncoding;
 import org.zaproxy.zap.network.HttpEncodingDeflate;
@@ -56,6 +59,11 @@ import org.zaproxy.zap.users.User;
 
 /** Unit test for {@link HttpMessage}. */
 class HttpMessageUnitTest {
+
+    @AfterEach
+    void cleanUp() {
+        HttpMessage.setContentEncodingsHandler(null);
+    }
 
     @Test
     void shouldBeEventStreamIfRequestWithoutResponseAcceptsEventStream() throws Exception {
@@ -273,6 +281,78 @@ class HttpMessageUnitTest {
         verify(body, times(0)).setContentEncodings(any());
     }
 
+    @ParameterizedTest
+    @MethodSource(value = "getNonPostMethods")
+    void shouldSetContentTypeWhenMutatingMethodToPost(String method) throws Exception {
+        String baseUri = "http://www.example.com:9000/";
+        String authority = new URI(baseUri, false).getAuthority();
+        String urlParams = "param1=param1&param2=param2";
+        // Given
+        HttpMessage message;
+
+        if (method.equals(HttpRequestHeader.CONNECT)) {
+            message =
+                    new HttpMessage(
+                            new HttpRequestHeader(
+                                    method + " " + authority + " HTTP/1.1\r\nHost: " + authority));
+        } else {
+            message =
+                    new HttpMessage(
+                            new HttpRequestHeader(
+                                    method
+                                            + " "
+                                            + baseUri
+                                            + "?"
+                                            + urlParams
+                                            + " HTTP/1.1\r\nHost: "
+                                            + authority));
+        }
+        // When
+        message.mutateHttpMethod(HttpRequestHeader.POST);
+        // Then
+        assertThat(message.getRequestHeader().getMethod(), is(HttpRequestHeader.POST));
+        assertThat(
+                message.getRequestHeader().getURI().getURI(),
+                is(method.equals(HttpRequestHeader.CONNECT) ? "http://" + authority : baseUri));
+        assertThat(
+                message.getRequestHeader().getHeader(HttpRequestHeader.CONTENT_TYPE),
+                is(
+                        method.equals(HttpRequestHeader.CONNECT)
+                                ? null
+                                : HttpRequestHeader.FORM_URLENCODED_CONTENT_TYPE));
+        assertThat(
+                message.getRequestBody().toString(),
+                is(method.equals(HttpRequestHeader.CONNECT) ? "" : urlParams));
+    }
+
+    @ParameterizedTest
+    @MethodSource(value = "getNonPostMethods")
+    void shouldRemoveContentTypeWhenMutatingMethodFromPost(String method) throws Exception {
+        String baseUri = "http://www.example.com:9000/";
+        String authority = new URI(baseUri, false).getAuthority();
+        String urlParams = "param1=param1&param2=param2";
+        // Given
+        HttpMessage message =
+                new HttpMessage(
+                        new HttpRequestHeader(
+                                "POST " + baseUri + " HTTP/1.1\r\nHost: " + authority));
+        message.setRequestBody(urlParams);
+        // When
+        message.mutateHttpMethod(method);
+        // Then
+        assertThat(message.getRequestHeader().getMethod(), is(method));
+        if (method.equals(HttpRequestHeader.CONNECT)) {
+            assertThat(
+                    message.getRequestHeader().getURI().toString(),
+                    is(new URI(baseUri, false).getAuthority()));
+        } else {
+            assertThat(
+                    message.getRequestHeader().getURI().toString(), is(baseUri + "?" + urlParams));
+        }
+        assertThat(
+                message.getRequestHeader().getHeader(HttpRequestHeader.CONTENT_TYPE), nullValue());
+    }
+
     @Test
     void shouldSetContentEncodingsWhenSettingRequestBodyByte() {
         // Given
@@ -396,6 +476,34 @@ class HttpMessageUnitTest {
     }
 
     @Test
+    void shouldUseContentEncodingsHandlerSet() {
+        // Given
+        HttpEncodingsHandler handler = mock(HttpEncodingsHandler.class);
+        HttpHeader header = mock(HttpHeader.class);
+        HttpBody body = mock(HttpBody.class);
+        // When
+        HttpMessage.setContentEncodingsHandler(handler);
+        HttpMessage.setContentEncodings(header, body);
+        // Then
+        verify(handler).handle(header, body);
+    }
+
+    @Test
+    void shouldNotUseContentEncodingsHandlerOnceUnset() {
+        // Given
+        HttpEncodingsHandler handler = mock(HttpEncodingsHandler.class);
+        HttpHeader header = mock(HttpHeader.class);
+        HttpBody body = mock(HttpBody.class);
+        // When
+        HttpMessage.setContentEncodingsHandler(handler);
+        HttpMessage.setContentEncodings(header, body);
+        HttpMessage.setContentEncodingsHandler(null);
+        HttpMessage.setContentEncodings(header, body);
+        // Then
+        verify(handler).handle(header, body);
+    }
+
+    @Test
     void
             shouldBeWebSocketUpgradeIfRequestConnectionHeaderContainsUpgradeAndUpgradeHeaderEqualsWebsocket()
                     throws Exception {
@@ -486,6 +594,12 @@ class HttpMessageUnitTest {
         return Stream.of(
                 arguments(StandardCharsets.ISO_8859_1.name(), "J/ψ → VP", "J/????VP"),
                 arguments(StandardCharsets.UTF_8.name(), "J/ψ → VP", "J/ψ → VP"));
+    }
+
+    static Stream<Arguments> getNonPostMethods() {
+        return Stream.of(HttpRequestHeader.METHODS)
+                .filter(method -> !method.equals(HttpRequestHeader.POST))
+                .map(Arguments::arguments);
     }
 
     @ParameterizedTest

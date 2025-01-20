@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -46,11 +47,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Vector;
+import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
+import org.mockito.Mock.Strictness;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.parosproxy.paros.extension.CommandLineArgument;
 import org.parosproxy.paros.extension.CommandLineListener;
@@ -65,7 +71,7 @@ class CommandLineUnitTest {
     private static final Map<String, CommandLineListener> NO_SUPPORTED_FILE_EXTENSIONS =
             Collections.emptyMap();
 
-    @Mock(lenient = true)
+    @Mock(strictness = Strictness.LENIENT)
     private I18N i18n;
 
     private CommandLine cmdLine;
@@ -86,6 +92,7 @@ class CommandLineUnitTest {
         given(i18n.getString(anyString())).willReturn("");
         given(i18n.getString(anyString(), any())).willReturn("");
         Constant.messages = i18n;
+        Constant.setSilent(false);
     }
 
     @Test
@@ -181,48 +188,25 @@ class CommandLineUnitTest {
     }
 
     @Test
-    void shouldFailIfPortArgumentDoesNotHaveValue() throws Exception {
-        // Given
-        String[] args = {CommandLine.PORT};
-        // When / Then
-        assertThrows(ArrayIndexOutOfBoundsException.class, () -> new CommandLine(args));
-    }
-
-    @Test
-    void shouldFailToParseInvalidPortArgument() throws Exception {
-        // Given
-        String[] args = {CommandLine.PORT, "InvalidPort"};
-        // When / Then
-        assertThrows(IllegalArgumentException.class, () -> new CommandLine(args));
-    }
-
-    @Test
-    void shouldParseValidPortArgument() throws Exception {
+    @SuppressWarnings("deprecation")
+    void shouldNotParsePortArgument() throws Exception {
         // Given
         int port = 8080;
         // When
         cmdLine = new CommandLine(new String[] {CommandLine.PORT, Integer.toString(port)});
         // Then
-        assertThat(cmdLine.getPort(), is(equalTo(port)));
-        assertThat(cmdLine.getArgument(CommandLine.PORT), is(equalTo("8080")));
+        assertThat(cmdLine.getPort(), is(equalTo(-1)));
     }
 
     @Test
-    void shouldFailIfHostArgumentDoesNotHaveValue() throws Exception {
-        // Given
-        String[] args = {CommandLine.HOST};
-        // When / Then
-        assertThrows(ArrayIndexOutOfBoundsException.class, () -> new CommandLine(args));
-    }
-
-    @Test
-    void shouldParseHostArgument() throws Exception {
+    @SuppressWarnings("deprecation")
+    void shouldNotParseHostArgument() throws Exception {
         // Given
         String hostname = "127.0.0.1";
         // When
         cmdLine = new CommandLine(new String[] {CommandLine.HOST, hostname});
         // Then
-        assertThat(cmdLine.getHost(), is(equalTo(hostname)));
+        assertThat(cmdLine.getHost(), is(nullValue()));
     }
 
     @Test
@@ -239,6 +223,43 @@ class CommandLineUnitTest {
         cmdLine = new CommandLine(new String[] {CommandLine.NOSTDOUT});
         // Then
         assertThat(cmdLine.isNoStdOutLog(), is(equalTo(true)));
+    }
+
+    @Test
+    void shouldHaveSilentArgumentDisabledByDefault() throws Exception {
+        // Given / When
+        cmdLine = new CommandLine(new String[] {});
+        // Then
+        assertThat(cmdLine.isSilent(), is(equalTo(false)));
+        assertThat(Constant.isSilent(), is(equalTo(false)));
+    }
+
+    @Test
+    void shouldParseSilentArgument() throws Exception {
+        // Given / When
+        cmdLine = new CommandLine(new String[] {CommandLine.SILENT});
+        // Then
+        assertThat(cmdLine.isSilent(), is(equalTo(true)));
+        assertThat(Constant.isSilent(), is(equalTo(true)));
+    }
+
+    @ParameterizedTest
+    @EmptySource
+    @ValueSource(strings = {"1", "0", "true", "false"})
+    void shouldReadSilentEnvVar(String value) throws Exception {
+        // Given
+        UnaryOperator<String> env =
+                name -> {
+                    if (CommandLine.SILENT_ENV_VAR.equals(name)) {
+                        return value;
+                    }
+                    return null;
+                };
+        // When
+        cmdLine = new CommandLine(new String[] {}, env);
+        // Then
+        assertThat(cmdLine.isSilent(), is(equalTo(true)));
+        assertThat(Constant.isSilent(), is(equalTo(true)));
     }
 
     @Test
@@ -272,6 +293,19 @@ class CommandLineUnitTest {
         assertThrows(
                 Exception.class,
                 () -> cmdLine.parse(NO_EXTENSIONS_CUSTOM_ARGUMENTS, NO_SUPPORTED_FILE_EXTENSIONS));
+    }
+
+    @Test
+    void shouldNotFailIfGivenUnsupportedArgumentAndNotReportUnsupported() throws Exception {
+        // Given
+        cmdLine = new CommandLine(new String[] {"-unsupported"});
+        // When / Then
+        assertDoesNotThrow(
+                () ->
+                        cmdLine.parse(
+                                NO_EXTENSIONS_CUSTOM_ARGUMENTS,
+                                NO_SUPPORTED_FILE_EXTENSIONS,
+                                false));
     }
 
     @Test

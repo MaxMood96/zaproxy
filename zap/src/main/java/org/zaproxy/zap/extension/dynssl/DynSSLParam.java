@@ -24,7 +24,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.common.AbstractParam;
 
-/** @author MaWoKi */
+/**
+ * @author MaWoKi
+ */
+@Deprecated
 public class DynSSLParam extends AbstractParam {
 
     /*default*/ static final String PARAM_ROOT_CA = "dynssl.param.rootca";
@@ -45,12 +48,14 @@ public class DynSSLParam extends AbstractParam {
         try {
             return SslCertificateUtils.string2Keystore(rootcastr);
         } catch (final Exception e) {
-            logger.error("Couldn't create Root CA KeyStore from String: " + rootcastr, e);
+            logger.error("Couldn't create Root CA KeyStore from String: {}", rootcastr, e);
         }
         return null;
     }
 
-    /** @param rootca */
+    /**
+     * @param rootca
+     */
     public void setRootca(String rootca) {
         setRootca(createKeyStore(rootca));
     }
@@ -59,7 +64,9 @@ public class DynSSLParam extends AbstractParam {
         return rootca;
     }
 
-    /** @param rootca */
+    /**
+     * @param rootca
+     */
     public void setRootca(KeyStore rootca) {
         this.rootca = rootca;
         if (rootca != null) {

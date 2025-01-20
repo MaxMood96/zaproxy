@@ -42,12 +42,13 @@ import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.Session;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.utils.DisplayUtils;
+import org.zaproxy.zap.utils.Stats;
 
 public class MainToolbarPanel extends JPanel {
 
     private static final long serialVersionUID = 1L;
 
-    private static final Logger logger = LogManager.getLogger(MainToolbarPanel.class);
+    private static final Logger LOGGER = LogManager.getLogger(MainToolbarPanel.class);
 
     private JToolBar toolbar = null;
     private JComboBox<String> modeSelect = null;
@@ -130,6 +131,7 @@ public class MainToolbarPanel extends JPanel {
             addButton((JToggleButton) component);
         } else {
             getToolbar().add(component);
+            revalidateAndRepaintToolbar();
         }
     }
 
@@ -145,6 +147,11 @@ public class MainToolbarPanel extends JPanel {
         }
     }
 
+    private void revalidateAndRepaintToolbar() {
+        getToolbar().revalidate();
+        getToolbar().repaint();
+    }
+
     /**
      * Removes the given component to the tool bar.
      *
@@ -156,13 +163,13 @@ public class MainToolbarPanel extends JPanel {
         validateComponentNonNull(component);
 
         getToolbar().remove(component);
-        getToolbar().validate();
-        getToolbar().repaint();
+        revalidateAndRepaintToolbar();
     }
 
     public void addButton(JButton button) {
         DisplayUtils.scaleIcon(button);
         getToolbar().add(button);
+        revalidateAndRepaintToolbar();
     }
 
     public void removeButton(JButton button) {
@@ -172,6 +179,7 @@ public class MainToolbarPanel extends JPanel {
     public void addButton(JToggleButton button) {
         DisplayUtils.scaleIcon(button);
         getToolbar().add(button);
+        revalidateAndRepaintToolbar();
     }
 
     public void removeButton(JToggleButton button) {
@@ -180,10 +188,12 @@ public class MainToolbarPanel extends JPanel {
 
     public void addSeparator() {
         getToolbar().addSeparator();
+        revalidateAndRepaintToolbar();
     }
 
     public void addSeparator(JToolBar.Separator separator) {
         getToolbar().add(separator);
+        revalidateAndRepaintToolbar();
     }
 
     public void removeSeparator(JToolBar.Separator separator) {
@@ -247,6 +257,8 @@ public class MainToolbarPanel extends JPanel {
                             }
                             Control.getSingleton().setMode(mode);
                             View.getSingleton().getMainFrame().getMainMenuBar().setMode(mode);
+                            Stats.incCounter(
+                                    "stats.ui.maintoolbar.dropdown.mode." + mode.toString());
                         }
                     });
         }
@@ -283,10 +295,11 @@ public class MainToolbarPanel extends JPanel {
 
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
+                            Stats.incCounter("stats.ui.maintoolbar.button.new");
                             try {
                                 Control.getSingleton().getMenuFileControl().newSession(true);
                             } catch (Exception ex) {
-                                logger.error(ex.getMessage(), ex);
+                                LOGGER.error(ex.getMessage(), ex);
                                 View.getSingleton()
                                         .showWarningDialog(
                                                 Constant.messages.getString(
@@ -315,10 +328,11 @@ public class MainToolbarPanel extends JPanel {
 
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
+                            Stats.incCounter("stats.ui.maintoolbar.button.open");
                             try {
                                 Control.getSingleton().getMenuFileControl().openSession();
                             } catch (Exception ex) {
-                                logger.error(ex.getMessage(), ex);
+                                LOGGER.error(ex.getMessage(), ex);
                                 View.getSingleton()
                                         .showWarningDialog(
                                                 Constant.messages.getString(
@@ -347,6 +361,7 @@ public class MainToolbarPanel extends JPanel {
 
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
+                            Stats.incCounter("stats.ui.mainstoolbar.button.persist");
                             try {
                                 if (Model.getSingleton().getSession().isNewState()) {
                                     Control.getSingleton().getMenuFileControl().saveAsSession();
@@ -357,7 +372,7 @@ public class MainToolbarPanel extends JPanel {
                                                             "menu.file.sessionExists.error"));
                                 }
                             } catch (Exception ex) {
-                                logger.error(ex.getMessage(), ex);
+                                LOGGER.error(ex.getMessage(), ex);
                                 View.getSingleton()
                                         .showWarningDialog(
                                                 Constant.messages.getString(
@@ -387,6 +402,7 @@ public class MainToolbarPanel extends JPanel {
 
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
+                            Stats.incCounter("stats.ui.maintoolbar.button.snapshot");
                             try {
                                 if (Model.getSingleton().getSession().isNewState()) {
                                     View.getSingleton()
@@ -397,7 +413,7 @@ public class MainToolbarPanel extends JPanel {
                                     Control.getSingleton().getMenuFileControl().saveSnapshot();
                                 }
                             } catch (Exception ex) {
-                                logger.error(ex.getMessage(), ex);
+                                LOGGER.error(ex.getMessage(), ex);
                                 View.getSingleton()
                                         .showWarningDialog(
                                                 Constant.messages.getString(
@@ -428,6 +444,7 @@ public class MainToolbarPanel extends JPanel {
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
                             Control.getSingleton().getMenuFileControl().properties();
+                            Stats.incCounter("stats.ui.maintoolbar.button.session");
                         }
                     });
         }
@@ -451,21 +468,12 @@ public class MainToolbarPanel extends JPanel {
                         @Override
                         public void actionPerformed(ActionEvent e) {
                             Control.getSingleton().getMenuToolsControl().options();
+                            Stats.incCounter("stats.ui.maintoolbar.button.options");
                         }
                     });
         }
         return btnOptions;
     }
-
-    /**
-     * @deprecated (2.5.0) No longer in use, the tool bar buttons are updated at the same time as
-     *     the layout.
-     * @see
-     *     org.parosproxy.paros.view.MainFrame#setWorkbenchLayout(org.parosproxy.paros.view.WorkbenchPanel.Layout)
-     */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public void setDisplayOption(int option) {}
 
     public void sessionChanged(Session session) {
         if (session != null) {

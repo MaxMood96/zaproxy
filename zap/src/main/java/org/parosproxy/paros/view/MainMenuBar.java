@@ -41,6 +41,11 @@
 // ZAP: 2021/04/08 Remove/fix boilerplate javadocs, and un-necessary fully qualified method return
 // types.
 // ZAP: 2021/05/14 Remove redundant type arguments.
+// ZAP: 2021/12/30 Disable snapshot menu item if session not already persisted, add tooltip to
+// disabled menu item (Issue 6938).
+// ZAP: 2022/03/12 Add open recent menu
+// ZAP: 2022/08/05 Address warns with Java 18 (Issue 7389).
+// ZAP: 2023/01/10 Tidy up logger.
 package org.parosproxy.paros.view;
 
 import java.awt.event.ActionEvent;
@@ -65,13 +70,15 @@ import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.Session;
 import org.zaproxy.zap.view.AboutDialog;
 import org.zaproxy.zap.view.ZapMenuItem;
+import org.zaproxy.zap.view.ZapSortedMenu;
 import org.zaproxy.zap.view.ZapSupportDialog;
 
+@SuppressWarnings("serial")
 public class MainMenuBar extends JMenuBar {
 
     private static final long serialVersionUID = 8580116506279095244L;
 
-    private static final Logger logger = LogManager.getLogger(MainMenuBar.class);
+    private static final Logger LOGGER = LogManager.getLogger(MainMenuBar.class);
 
     private javax.swing.JMenu menuEdit = null;
     private javax.swing.JMenu menuTools = null;
@@ -79,6 +86,7 @@ public class MainMenuBar extends JMenuBar {
     private javax.swing.JMenu menuImport = null;
     private ZapMenuItem menuToolsOptions = null;
     private javax.swing.JMenu menuFile = null;
+    private JMenu menuFileOpenRecent;
     private ZapMenuItem menuFileNewSession = null;
     private ZapMenuItem menuFileOpen = null;
     private ZapMenuItem menuFileSaveAs = null;
@@ -215,7 +223,7 @@ public class MainMenuBar extends JMenuBar {
      */
     public JMenu getMenuImport() {
         if (menuImport == null) {
-            menuImport = new javax.swing.JMenu();
+            menuImport = new ZapSortedMenu();
             menuImport.setText(Constant.messages.getString("menu.import"));
             menuImport.setMnemonic(Constant.messages.getChar("menu.import.mnemonic"));
         }
@@ -254,6 +262,7 @@ public class MainMenuBar extends JMenuBar {
             menuFile.setMnemonic(Constant.messages.getChar("menu.file.mnemonic"));
             menuFile.add(getMenuFileNewSession());
             menuFile.add(getMenuFileOpen());
+            menuFile.add(getMenuFileOpenRecent());
             menuFile.addSeparator();
             menuFile.add(getMenuFileSaveAs());
             menuFile.add(getMenuFileSnapshot());
@@ -288,7 +297,7 @@ public class MainMenuBar extends JMenuBar {
                                         .showWarningDialog(
                                                 Constant.messages.getString(
                                                         "menu.file.newSession.error")); // ZAP: i18n
-                                logger.error(e1.getMessage(), e1);
+                                LOGGER.error(e1.getMessage(), e1);
                             }
                         }
                     });
@@ -311,6 +320,27 @@ public class MainMenuBar extends JMenuBar {
                     });
         }
         return menuFileOpen;
+    }
+
+    private JMenu getMenuFileOpenRecent() {
+        if (menuFileOpenRecent == null) {
+            menuFileOpenRecent = new JMenu();
+            menuFileOpenRecent.setText(Constant.messages.getString("menu.file.openRecent"));
+            refreshMenuFileOpenRecent();
+        }
+        return menuFileOpenRecent;
+    }
+
+    private void refreshMenuFileOpenRecent() {
+        menuFileOpenRecent.removeAll();
+
+        for (String session :
+                Model.getSingleton().getOptionsParam().getViewParam().getRecentSessions()) {
+            JMenuItem menuItem = new JMenuItem(session);
+            menuItem.addActionListener(e -> getMenuFileControl().openSession(session));
+            menuFileOpenRecent.add(menuItem);
+        }
+        menuFileOpenRecent.setEnabled(menuFileOpenRecent.getMenuComponentCount() != 0);
     }
 
     private JMenuItem getMenuFileSaveAs() {
@@ -351,6 +381,7 @@ public class MainMenuBar extends JMenuBar {
                             }
                         }
                     });
+            toggleSnapshotState(false);
         }
         return menuFileSnapshot;
     }
@@ -543,7 +574,19 @@ public class MainMenuBar extends JMenuBar {
     public void sessionChanged(Session session) {
         if (session != null) {
             this.getMenuFileSaveAs().setEnabled(session.isNewState());
-            this.getMenuFileSnapshot().setEnabled(!session.isNewState());
+            toggleSnapshotState(!session.isNewState());
+
+            refreshMenuFileOpenRecent();
         }
+    }
+
+    private void toggleSnapshotState(boolean enabled) {
+        if (enabled) {
+            menuFileSnapshot.setToolTipText("");
+        } else {
+            menuFileSnapshot.setToolTipText(
+                    Constant.messages.getString("menu.file.snapshotSession.disabled.tooltip"));
+        }
+        menuFileSnapshot.setEnabled(enabled);
     }
 }

@@ -71,7 +71,7 @@ public class ExtensionUiUtils extends ExtensionAdaptor implements SessionChanged
     public void hook(ExtensionHook extensionHook) {
         super.hook(extensionHook);
 
-        if (getView() != null) {
+        if (hasView()) {
             extensionHook.addSessionListener(this);
         }
     }
@@ -97,6 +97,10 @@ public class ExtensionUiUtils extends ExtensionAdaptor implements SessionChanged
     }
 
     private void sessionChangedEventHandler(Session session) {
+        if (session != null && !session.isNewState()) {
+            getModel().getOptionsParam().getViewParam().addLatestSession(session.getFileName());
+        }
+
         MainFrame mainFrame = getView().getMainFrame();
         mainFrame.getMainMenuBar().sessionChanged(session);
         mainFrame.getMainToolbarPanel().sessionChanged(session);

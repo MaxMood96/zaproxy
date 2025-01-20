@@ -52,6 +52,7 @@ import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.utils.ZapLabel;
 import org.zaproxy.zap.view.LayoutHelper;
 
+@SuppressWarnings("serial")
 public class HistoryFilterPlusDialog extends AbstractDialog {
 
     private static final long serialVersionUID = 1L;
@@ -97,7 +98,9 @@ public class HistoryFilterPlusDialog extends AbstractDialog {
      * [Clear ] [Apply ] | +----------------------------------------------------------------------+
      */
 
-    /** @throws HeadlessException */
+    /**
+     * @throws HeadlessException
+     */
     public HistoryFilterPlusDialog() throws HeadlessException {
         super();
         initialize();
@@ -175,6 +178,7 @@ public class HistoryFilterPlusDialog extends AbstractDialog {
         }
         return jPanel;
     }
+
     /**
      * This method initializes btnApply
      *
@@ -247,6 +251,7 @@ public class HistoryFilterPlusDialog extends AbstractDialog {
         }
         return btnCancel;
     }
+
     /**
      * This method initializes jPanel1
      *
@@ -302,6 +307,7 @@ public class HistoryFilterPlusDialog extends AbstractDialog {
     private Insets stdInset() {
         return new Insets(5, 5, 1, 5);
     }
+
     /**
      * This method initializes jPanel2
      *

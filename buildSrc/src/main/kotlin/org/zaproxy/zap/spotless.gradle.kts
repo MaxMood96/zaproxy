@@ -63,6 +63,7 @@ spotless {
                 "src/main/java/org/parosproxy/paros/model/HttpMessageCachedData.java",
                 "src/main/java/org/parosproxy/paros/model/HistoryReferenceEventPublisher.java",
                 "src/main/java/org/parosproxy/paros/model/SiteMapEventPublisher.java",
+                "src/main/java/org/parosproxy/paros/model/SiteNodeStringComparator.java",
                 "src/main/java/org/parosproxy/paros/network/ProxyExcludedDomainMatcher.java",
                 "src/main/java/org/parosproxy/paros/network/HtmlParameter.java",
                 "src/main/java/org/parosproxy/paros/network/HttpHeaderField.java",
@@ -118,7 +119,7 @@ spotless {
 
     java {
         clearSteps()
-        googleJavaFormat("1.7").aosp()
+        googleJavaFormat("1.17.0").aosp()
 
         // Exclude forked/3rd-party/generated files.
         targetExclude(listOf(

@@ -33,12 +33,18 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.parosproxy.paros.Constant;
+import org.zaproxy.zap.view.ViewLocale;
 
 /** Unit test for {@link LocaleUtils}. */
 class LocaleUtilsUnitTest {
@@ -46,7 +52,8 @@ class LocaleUtilsUnitTest {
     private static final ResourceBundle.Control HELPER_CONTROL =
             ResourceBundle.Control.getControl(ResourceBundle.Control.FORMAT_DEFAULT);
 
-    private static final Locale LOCALE_SPAIN = new Locale("es", "ES");
+    private static final Locale LOCALE_SPAIN =
+            new Locale.Builder().setLanguage("es").setRegion("ES").build();
 
     private static final String FILE_NAME = "FileName";
     private static final String FILE_EXTENSION = ".extension";
@@ -210,6 +217,24 @@ class LocaleUtilsUnitTest {
     }
 
     @Test
+    void shouldHaveDuplicatedLanguagesWithCountry(@TempDir Path tempDir) throws Exception {
+        // Given
+        Path installDir = tempDir.resolve("zap");
+        Constant.setZapInstall(installDir.toString());
+        Path langDir = Files.createDirectories(installDir.resolve(Constant.LANG_DIR));
+        Files.createFile(langDir.resolve("Messages_pt_BR.properties"));
+        Files.createFile(langDir.resolve("Messages_pt_PT.properties"));
+
+        // When
+        List<ViewLocale> locales = LocaleUtils.getAvailableViewLocales();
+
+        // Then
+        List<String> displayNames =
+                locales.stream().map(ViewLocale::toString).collect(Collectors.toUnmodifiableList());
+        assertThat(displayNames, contains("English", "português (Brasil)", "português (Portugal)"));
+    }
+
+    @Test
     void shouldFindResourcesWithDefaultControl() {
         Locale defaultLocale = Locale.getDefault();
         try {
@@ -360,6 +385,13 @@ class LocaleUtilsUnitTest {
                         invocation -> {
                             Object[] args = invocation.getArguments();
                             return HELPER_CONTROL.toBundleName((String) args[0], (Locale) args[1]);
+                        });
+        when(control.toResourceName(anyString(), anyString()))
+                .thenAnswer(
+                        invocation -> {
+                            Object[] args = invocation.getArguments();
+                            return HELPER_CONTROL.toResourceName(
+                                    (String) args[0], (String) args[1]);
                         });
         return control;
     }

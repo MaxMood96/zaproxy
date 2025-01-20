@@ -19,28 +19,78 @@
  */
 package org.parosproxy.paros.core.scanner;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.List;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.network.HttpMessage;
 
 /**
  * Variant class used for URL path elements. For a URL like: {@literal
- * http://www.example.com/aaa/bbb/ccc?ddd=eee&fff=ggg} it will handle: aaa, bbb and ccc
+ * http://www.example.com/aaa/bbb/ccc?ddd=eee&fff=ggg} it will handle: aaa, bbb, ccc, and "" (after
+ * ccc/)
  *
  * @author psiinon
  */
 public class VariantURLPath implements Variant {
 
-    private final Logger LOGGER = LogManager.getLogger(this.getClass());
+    private static final Logger LOGGER = LogManager.getLogger(VariantURLPath.class);
+
+    private static final char ESCAPE = '%';
+
+    /*
+     * The allowed characters in a path segment, from RFCs 3986 and 4234.
+     */
+    private static final BitSet PCHAR = new BitSet();
+
+    static {
+        PCHAR.set(':');
+        PCHAR.set('@');
+        for (int i = 'A'; i <= 'Z'; i++) {
+            PCHAR.set(i);
+        }
+        for (int i = 'a'; i <= 'z'; i++) {
+            PCHAR.set(i);
+        }
+        for (int i = '0'; i <= '9'; i++) {
+            PCHAR.set(i);
+        }
+
+        PCHAR.set('-');
+        PCHAR.set('.');
+        PCHAR.set('_');
+        PCHAR.set('~');
+
+        PCHAR.set('!');
+        PCHAR.set('$');
+        PCHAR.set('&');
+        PCHAR.set('\'');
+        PCHAR.set('(');
+        PCHAR.set(')');
+        PCHAR.set('*');
+        PCHAR.set('+');
+        PCHAR.set(',');
+        PCHAR.set(';');
+        PCHAR.set('=');
+        PCHAR.set('[');
+        PCHAR.set(']');
+    }
 
     private final List<NameValuePair> stringParam = new ArrayList<>();
+    private String[] segments;
+
+    private static final String SHORT_NAME = "urlpath";
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
 
     @Override
     public void setMessage(HttpMessage msg) {
@@ -51,23 +101,73 @@ public class VariantURLPath implements Variant {
          *      aaa     1
          *      bbb     2
          *      ccc     3
+         *              4
          */
-        try {
-            if (msg.getRequestHeader().getURI().getPath() != null) {
-                String[] paths = msg.getRequestHeader().getURI().getPath().toString().split("/");
-                int i = 0;
-                for (String path : paths) {
-                    if (path.length() > 0) {
-                        stringParam.add(
-                                new NameValuePair(NameValuePair.TYPE_URL_PATH, path, path, i));
-                    }
-
+        String encodedPath = msg.getRequestHeader().getURI().getEscapedPath();
+        int i = 1;
+        if (encodedPath != null) {
+            segments = encodedPath.split("/");
+            for (String segment : segments) {
+                if (segment.length() > 0) {
+                    String decodedSegment = decode(segment);
+                    stringParam.add(
+                            new NameValuePair(
+                                    NameValuePair.TYPE_URL_PATH,
+                                    decodedSegment,
+                                    decodedSegment,
+                                    i));
                     i++;
                 }
             }
-        } catch (URIException e) {
-            // Ignore
         }
+        // Attack new path at the end
+        stringParam.add(new NameValuePair(NameValuePair.TYPE_URL_PATH, "", "", i));
+        if (segments == null || segments.length == 0) {
+            segments = new String[] {""};
+        }
+    }
+
+    // Adapted from URLCodec#decodeUrl
+    private static String decode(String segment) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] bytes = segment.getBytes(StandardCharsets.US_ASCII);
+        for (int i = 0; i < bytes.length; i++) {
+            byte b = bytes[i];
+            if (b == ESCAPE) {
+                int u = Character.digit(bytes[++i], 16);
+                int l = Character.digit(bytes[++i], 16);
+                baos.write((u << 4) + l);
+            } else {
+                baos.write(b);
+            }
+        }
+        return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    // Adapted from URLCodec#encodeUrl
+    private static String encode(String segment) {
+        if (segment == null || segment.isEmpty()) {
+            return segment;
+        }
+
+        StringBuilder strBuilder = new StringBuilder();
+        byte[] chars = segment.getBytes(StandardCharsets.UTF_8);
+        for (int i = 0; i < chars.length; i++) {
+            int b = chars[i];
+            if (b < 0) {
+                b = 256 + b;
+            }
+            if (PCHAR.get(b)) {
+                strBuilder.append((char) b);
+            } else {
+                strBuilder.append(ESCAPE).append(toHex(b >> 4)).append(toHex(b));
+            }
+        }
+        return strBuilder.toString();
+    }
+
+    private static char toHex(int b) {
+        return Character.toUpperCase(Character.forDigit(b & 0xF, 16));
     }
 
     @Override
@@ -87,24 +187,6 @@ public class VariantURLPath implements Variant {
         return setParameter(msg, originalPair, name, value, true);
     }
 
-    /**
-     * Encode the parameter value for a correct URL introduction
-     *
-     * @param value the value that need to be encoded
-     * @return the Encoded value
-     */
-    private String getEscapedValue(String value) {
-        if (value != null) {
-            try {
-                return URLEncoder.encode(value, "UTF-8");
-
-            } catch (UnsupportedEncodingException ex) {
-            }
-        }
-
-        return "";
-    }
-
     private String setParameter(
             HttpMessage msg,
             NameValuePair originalPair,
@@ -113,22 +195,27 @@ public class VariantURLPath implements Variant {
             boolean escaped) {
         try {
             URI uri = msg.getRequestHeader().getURI();
-            String[] paths = msg.getRequestHeader().getURI().getPath().toString().split("/");
 
-            if (originalPair.getPosition() < paths.length) {
+            int position = originalPair.getPosition();
+            if (position > segments.length) {
+                throw new IllegalArgumentException("Invalid position " + position);
+            }
+            String path;
+            if (position < segments.length) {
+                String encodedValue = escaped ? value : encode(value);
+                String originalValue = segments[position];
+                segments[position] = encodedValue;
+                path = StringUtils.join(segments, "/");
+                segments[position] = originalValue;
+            } else {
+                path = StringUtils.join(segments, "/") + "/" + value;
+            }
+            try {
+                uri.setEscapedPath(path);
 
-                String encodedValue = (escaped) ? value : getEscapedValue(value);
-
-                paths[originalPair.getPosition()] = encodedValue;
-                String path = StringUtils.join(paths, "/");
-
-                try {
-                    uri.setEscapedPath(path);
-
-                } catch (URIException e) {
-                    // Looks like it wasn't escaped after all
-                    uri.setPath(path);
-                }
+            } catch (URIException e) {
+                // Looks like it wasn't escaped after all
+                uri.setPath(path);
             }
 
         } catch (URIException e) {
@@ -137,14 +224,4 @@ public class VariantURLPath implements Variant {
 
         return value;
     }
-
-    /*
-    public static void main(String[] args) {
-        VariantURLPath var = new VariantURLPath();
-        String value = var.getEscapedValue("prova +codifica+ strana");
-        System.out.println(value);
-        String res = var.getUnescapedValue(value);
-        System.out.println(res);
-    }
-    */
 }

@@ -1,6 +1,6 @@
-Welcome to the OWASP Zed Attack Proxy
+Welcome to the Zed Attack Proxy
 =====================================
-The OWASP Zed Attack Proxy (ZAP) is one of the world’s most popular free 
+The Zed Attack Proxy (ZAP) is one of the world’s most popular free 
 security tools and is actively maintained by hundreds of international 
 volunteers. 
 It can help you automatically find security vulnerabilities in your web 
@@ -13,7 +13,7 @@ For more details on ZAP please goto the home page:
 	
 We welcome feedback, either via the Issues, User Group or Developer Group.
 ZAP is also a community based project, and contributions are welcomed.
-See the ZAP wiki for more information.
+See the ZAP website for more information.
 
 How to start ZAP
 ----------------
@@ -21,7 +21,7 @@ There are 3 options on Windows:
 
 * Via the desktop icon (assuming you selected this option during installation)
 * Via the 'Start' menu:
-    All Programs / OWASP / Zed Attack Proxy / ZAP <version> 
+    All Programs / ZAP / Zed Attack Proxy / ZAP <version> 
 * Via the 'zap.bat' command line script in the installation directory 
 
 Linux
@@ -37,8 +37,7 @@ You can use the 'zap.sh' script, as per linux.
 
 Docker
 
-ZAP is available on https://hub.docker.com/r/owasp/zap2docker-stable/
-For more details of how you can use it see 
+ZAP is available as Docker images. For more details of how you can use them see 
 https://www.zaproxy.org/docs/docker/ 
 
 Headless Environment

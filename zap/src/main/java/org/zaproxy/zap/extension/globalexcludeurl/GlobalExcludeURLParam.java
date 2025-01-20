@@ -27,12 +27,16 @@ import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.common.AbstractParam;
-import org.parosproxy.paros.model.Model;
 import org.zaproxy.zap.extension.api.ZapApiIgnore;
 
+/**
+ * @deprecated (2.13.0) Superseded by Network add-on options.
+ */
+@SuppressWarnings("removal")
+@Deprecated(since = "2.13.0", forRemoval = true)
 public class GlobalExcludeURLParam extends AbstractParam {
 
-    private static final Logger logger = LogManager.getLogger(GlobalExcludeURLParam.class);
+    private static final Logger LOGGER = LogManager.getLogger(GlobalExcludeURLParam.class);
 
     private static final String GLOBAL_EXCLUDE_URL_BASE_KEY = "globalexcludeurl";
 
@@ -127,13 +131,13 @@ public class GlobalExcludeURLParam extends AbstractParam {
             {
                 "^https?://(?:safebrowsing-cache|sb-ssl|sb|safebrowsing).*\\.(?:google|googleapis)\\.com/.*$",
                 "Site - Google malware detector updates",
-                "false"
+                "true"
             },
             {"^https?://(?:[^/])*\\.?lastpass\\.com", "Site - Lastpass manager", "false"},
             {
                 "^https?://(?:.*addons|aus[0-9])\\.mozilla\\.(?:org|net|com)/.*$",
                 "Site - Firefox browser updates",
-                "false"
+                "true"
             },
             {
                 "^https?://(?:[^/])*\\.?(?:getfoxyproxy\\.org|getfirebug\\.com|noscript\\.net)",
@@ -145,17 +149,17 @@ public class GlobalExcludeURLParam extends AbstractParam {
                 // http://serverfault.com/questions/332003/what-urls-must-be-in-ies-trusted-sites-list-to-allow-windows-update
                 "^https?://(?:.*update\\.microsoft|.*\\.windowsupdate)\\.com/.*$",
                 "Site - Microsoft Windows updates",
-                "false"
+                "true"
             },
             {
                 "^https?://clients2\\.google\\.com/service/update2/crx.*$",
                 "Site - Google Chrome extension updates",
-                "false"
+                "true"
             },
             {
                 "^https?://detectportal\\.firefox\\.com.*$",
                 "Site - Firefox captive portal detection",
-                "false"
+                "true"
             },
             {"^https?://www\\.google-analytics\\.com.*$", "Site - Google Analytics", "false"},
             {
@@ -167,20 +171,20 @@ public class GlobalExcludeURLParam extends AbstractParam {
             {
                 "^https?://.*\\.cdn\\.mozilla\\.(?:com|org|net)/.*$",
                 "Site - Mozilla CDN (requests such as getpocket)",
-                "false"
+                "true"
             },
             {
                 "^https?://.*\\.telemetry\\.mozilla\\.(?:com|org|net)/.*$",
                 "Site - Firefox browser telemetry",
-                "false"
+                "true"
             },
             {
                 "^https?://.*\\.adblockplus\\.org.*$",
                 "Site - Adblockplus updates and notifications",
                 "false"
             },
-            {"^https?://.*\\.services\\.mozilla\\.com.*$", "Site - Firefox services", "false"},
-            {"^https?://.*\\.gvt1\\.com.*$", "Site - Google updates", "false"}
+            {"^https?://.*\\.services\\.mozilla\\.com.*$", "Site - Firefox services", "true"},
+            {"^https?://.*\\.gvt1\\.com.*$", "Site - Google updates", "true"}
         };
 
         for (String row[] : defaultListArray) {
@@ -220,12 +224,12 @@ public class GlobalExcludeURLParam extends AbstractParam {
                 }
             }
         } catch (ConversionException e) {
-            logger.error("Error while loading Global Exclude URL tokens: " + e.getMessage(), e);
+            LOGGER.error("Error while loading Global Exclude URL tokens: {}", e.getMessage(), e);
             this.tokens = new ArrayList<>(defaultList.size());
             this.enabledTokensNames = new ArrayList<>(defaultList.size());
         }
 
-        if (this.tokens.size() == 0) {
+        if (this.tokens.isEmpty()) {
             for (GlobalExcludeURLParamToken geu : defaultList) {
                 this.tokens.add(new GlobalExcludeURLParamToken(geu));
             }
@@ -259,9 +263,6 @@ public class GlobalExcludeURLParam extends AbstractParam {
 
         enabledTokens.trimToSize();
         this.enabledTokensNames = enabledTokens;
-
-        // after saving, force the proxy to refresh the URL lists.
-        Model.getSingleton().getSession().forceGlobalExcludeURLRefresh();
     }
 
     public void addToken(String regex) {

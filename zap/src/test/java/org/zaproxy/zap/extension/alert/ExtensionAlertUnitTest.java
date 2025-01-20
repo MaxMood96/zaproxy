@@ -19,11 +19,28 @@
  */
 package org.zaproxy.zap.extension.alert;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.MockedStatic;
 import org.parosproxy.paros.core.scanner.Alert;
+import org.parosproxy.paros.model.HistoryReference;
+import org.parosproxy.paros.network.HttpMessage;
 
 class ExtensionAlertUnitTest {
 
@@ -32,12 +49,19 @@ class ExtensionAlertUnitTest {
     private static final String ORIGINAL_SOLN = "Original Solution";
     private static final String ORIGINAL_OTHER = "Original Other";
     private static final String ORIGINAL_REF = "Original Ref";
+    private static final String ORIGINAL_TAG_KEY = "Original Key";
+    private static final String ORIGINAL_TAG_VALUE = "Original Value";
+    private static final Map<String, String> ORIGINAL_TAG =
+            Collections.singletonMap(ORIGINAL_TAG_KEY, ORIGINAL_TAG_VALUE);
 
     private static final String NEW_NAME = "New Name";
     private static final String NEW_DESC = "New Desc";
     private static final String NEW_SOLN = "New Solution";
     private static final String NEW_OTHER = "New Other";
     private static final String NEW_REF = "New Ref";
+    private static final String NEW_TAG_VALUE = "New Value";
+    private static final Map<String, String> NEW_TAG =
+            Collections.singletonMap("Original Key", "New Value");
 
     private ExtensionAlert extAlert;
 
@@ -53,6 +77,7 @@ class ExtensionAlertUnitTest {
         alert.setSolution(ORIGINAL_SOLN);
         alert.setOtherInfo(ORIGINAL_OTHER);
         alert.setReference(ORIGINAL_REF);
+        alert.setTags(ORIGINAL_TAG);
         return alert;
     }
 
@@ -68,6 +93,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -78,6 +104,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -92,6 +119,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -102,6 +130,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -116,6 +145,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -126,6 +156,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -140,6 +171,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -150,6 +182,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -164,6 +197,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -174,6 +208,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -188,6 +223,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -198,6 +234,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -212,6 +249,7 @@ class ExtensionAlertUnitTest {
         assertEquals(NEW_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -222,6 +260,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -236,6 +275,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN + NEW_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -246,6 +286,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -260,6 +301,7 @@ class ExtensionAlertUnitTest {
         assertEquals(NEW_SOLN + ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -270,6 +312,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -284,6 +327,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(NEW_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -294,6 +338,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -308,6 +353,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER + NEW_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -318,6 +364,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -332,6 +379,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(NEW_OTHER + ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -342,6 +390,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -356,6 +405,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(NEW_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -366,6 +416,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -380,6 +431,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(ORIGINAL_REF + NEW_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -390,6 +442,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 
     @Test
@@ -404,6 +457,7 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert1.getSolution());
         assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
         assertEquals(NEW_REF + ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG, alert1.getTags());
 
         // Check other alerts are not affected
         Alert alert2 = newAlert(2);
@@ -414,5 +468,204 @@ class ExtensionAlertUnitTest {
         assertEquals(ORIGINAL_SOLN, alert2.getSolution());
         assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
         assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
+    }
+
+    @ParameterizedTest
+    @MethodSource("alertTagsMethodSource")
+    void shouldReplaceAlertTagCorrectly() {
+        extAlert.setAlertOverrideProperty("1.tag." + ORIGINAL_TAG_KEY, NEW_TAG_VALUE);
+
+        Alert alert1 = newAlert(1);
+        extAlert.applyOverrides(alert1);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert1.getName());
+        assertEquals(ORIGINAL_DESC, alert1.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert1.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(NEW_TAG, alert1.getTags());
+
+        // Check other alerts are not affected
+        Alert alert2 = newAlert(2);
+        extAlert.applyOverrides(alert2);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert2.getName());
+        assertEquals(ORIGINAL_DESC, alert2.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert2.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
+    }
+
+    @Test
+    void shouldReplaceOnlySpecifiedTag() {
+        // Given
+        Alert alert1 = newAlert(1);
+        String key1 = "Bounty";
+        String value1 = "$200";
+        String key2 = "Priority";
+        String value2 = "Critical";
+        Map<String, String> tags = new HashMap<>();
+        tags.put(key1, value1);
+        tags.put(key2, value2);
+        alert1.setTags(tags);
+
+        extAlert.setAlertOverrideProperty("1.tag." + key1, NEW_TAG_VALUE);
+
+        // When/Then
+        extAlert.applyOverrides(alert1);
+        assertEquals(ORIGINAL_NAME, alert1.getName());
+        assertEquals(ORIGINAL_DESC, alert1.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert1.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(2, alert1.getTags().size());
+        assertEquals(NEW_TAG_VALUE, alert1.getTags().get(key1));
+        assertEquals(value2, alert1.getTags().get(key2));
+
+        // Check other alerts are not affected
+        Alert alert2 = newAlert(2);
+        extAlert.applyOverrides(alert2);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert2.getName());
+        assertEquals(ORIGINAL_DESC, alert2.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert2.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
+    }
+
+    @Test
+    void shouldCopyCorrectHistoryTags() {
+        // Given
+        Alert alert = newAlert(1);
+        alert.setUri("https://www.example.com");
+        alert.setSourceHistoryId(1);
+        HttpMessage msg = new HttpMessage();
+        alert.setMessage(msg);
+
+        try (MockedStatic<HistoryReference> hr = mockStatic(HistoryReference.class)) {
+            List<String> tags =
+                    List.of(
+                            "ShouldIgnore",
+                            "ALERT-TAG:",
+                            "ALERT-TAG:=",
+                            "ALERT-TAG: \t",
+                            "ALERT-TAG: \t=",
+                            "ALERT-TAG:AAA=BBB",
+                            "ALERT-TAG:CCC=",
+                            "ALERT-TAG:DDD=EEE",
+                            "ALERT-TAG:FFF=GGG=HHH",
+                            "ALERT-TAG:III");
+            hr.when(() -> HistoryReference.getTags(1)).thenReturn(tags);
+
+            HistoryReference href = mock(HistoryReference.class);
+            when(href.getHistoryType()).thenReturn(1);
+            when(href.getHistoryId()).thenReturn(1);
+
+            // When
+            extAlert.alertFound(alert, href);
+            Map<String, String> alertTags = alert.getTags();
+
+            // Then
+            assertEquals(6, alertTags.size());
+            assertThat(alertTags, hasEntry("AAA", "BBB"));
+            assertThat(alertTags, hasEntry("CCC", ""));
+            assertThat(alertTags, hasEntry("DDD", "EEE"));
+            assertThat(alertTags, hasEntry("FFF", "GGG=HHH"));
+            assertThat(alertTags, hasEntry("III", ""));
+            assertThat(alertTags, hasEntry("Original Key", "Original Value"));
+        }
+    }
+
+    private static Stream<Arguments> alertTagsMethodSource() {
+        return Stream.of(
+                Arguments.of("Key with whitespace", "Value with whitespace"),
+                Arguments.of("example.key", "example.value"),
+                Arguments.of("example_key", "example_value"),
+                Arguments.of("", "emptyKey"),
+                Arguments.of("emptyValue", ""));
+    }
+
+    @ParameterizedTest
+    @MethodSource("alertTagsMethodSource")
+    void shouldAddNewAlertTagsCorrectly(String key, String value) {
+        extAlert.setAlertOverrideProperty("1.tag." + key, value);
+
+        Alert alert1 = newAlert(1);
+        extAlert.applyOverrides(alert1);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert1.getName());
+        assertEquals(ORIGINAL_DESC, alert1.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert1.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(value, alert1.getTags().get(key));
+
+        // Check other alerts are not affected
+        Alert alert2 = newAlert(2);
+        extAlert.applyOverrides(alert2);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert2.getName());
+        assertEquals(ORIGINAL_DESC, alert2.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert2.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Value with whitespace", "example.value", "example_value", ""})
+    void shouldAppendAlertTagCorrectly(String value) {
+        extAlert.setAlertOverrideProperty("1.tag." + ORIGINAL_TAG_KEY, "+" + value);
+
+        Alert alert1 = newAlert(1);
+        extAlert.applyOverrides(alert1);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert1.getName());
+        assertEquals(ORIGINAL_DESC, alert1.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert1.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(ORIGINAL_TAG_VALUE + value, alert1.getTags().get(ORIGINAL_TAG_KEY));
+
+        // Check other alerts are not affected
+        Alert alert2 = newAlert(2);
+        extAlert.applyOverrides(alert2);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert2.getName());
+        assertEquals(ORIGINAL_DESC, alert2.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert2.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Value with whitespace", "example.value", "example_value", ""})
+    void shouldPrependAlertTagCorrectly(String value) {
+        extAlert.setAlertOverrideProperty("1.tag." + ORIGINAL_TAG_KEY, "-" + value);
+
+        Alert alert1 = newAlert(1);
+        extAlert.applyOverrides(alert1);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert1.getName());
+        assertEquals(ORIGINAL_DESC, alert1.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert1.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert1.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert1.getReference());
+        assertEquals(value + ORIGINAL_TAG_VALUE, alert1.getTags().get(ORIGINAL_TAG_KEY));
+
+        // Check other alerts are not affected
+        Alert alert2 = newAlert(2);
+        extAlert.applyOverrides(alert2);
+        // When/Then
+        assertEquals(ORIGINAL_NAME, alert2.getName());
+        assertEquals(ORIGINAL_DESC, alert2.getDescription());
+        assertEquals(ORIGINAL_SOLN, alert2.getSolution());
+        assertEquals(ORIGINAL_OTHER, alert2.getOtherInfo());
+        assertEquals(ORIGINAL_REF, alert2.getReference());
+        assertEquals(ORIGINAL_TAG, alert2.getTags());
     }
 }

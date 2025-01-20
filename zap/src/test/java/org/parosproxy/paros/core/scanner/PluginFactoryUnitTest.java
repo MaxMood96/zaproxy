@@ -37,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.quality.Strictness;
 import org.parosproxy.paros.Constant;
 import org.zaproxy.zap.control.AddOn;
 import org.zaproxy.zap.utils.I18N;
@@ -47,7 +48,7 @@ class PluginFactoryUnitTest extends PluginTestUtils {
 
     @BeforeEach
     void setUp() throws Exception {
-        I18N i18n = mock(I18N.class, withSettings().lenient());
+        I18N i18n = mock(I18N.class, withSettings().strictness(Strictness.LENIENT));
         given(i18n.getString(anyString())).willReturn("");
         given(i18n.getString(anyString(), any())).willReturn("");
         Constant.messages = i18n;
@@ -97,13 +98,13 @@ class PluginFactoryUnitTest extends PluginTestUtils {
     }
 
     @Test
-    void shouldHaveOnePluginByDefault() {
+    void shouldHaveNoPluginsByDefault() {
         // Given
         PluginFactory pluginFactory = new PluginFactory();
         // When
         pluginFactory.loadAllPlugin(emptyConfig());
         // Then
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(0)));
     }
 
     @Test
@@ -116,8 +117,7 @@ class PluginFactoryUnitTest extends PluginTestUtils {
         pluginFactory.loadAllPlugin(emptyConfig());
         // Then
         assertThat(PluginFactory.isPluginLoaded(plugin), is(equalTo(true)));
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
-        assertThat(pluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(0)));
     }
 
     @Test
@@ -130,8 +130,7 @@ class PluginFactoryUnitTest extends PluginTestUtils {
         pluginFactory.loadAllPlugin(emptyConfig());
         // Then
         assertThat(PluginFactory.isPluginLoaded(plugin), is(equalTo(true)));
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
-        assertThat(pluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(0)));
     }
 
     @Test
@@ -144,9 +143,8 @@ class PluginFactoryUnitTest extends PluginTestUtils {
         pluginFactory.loadAllPlugin(emptyConfig());
         // Then
         assertThat(PluginFactory.isPluginLoaded(plugin), is(equalTo(true)));
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(2)));
-        assertThat(pluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
-        assertThat(pluginFactory.getAllPlugin().get(1), is(equalTo((Plugin) plugin)));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
+        assertThat(pluginFactory.getAllPlugin().get(0), is(equalTo((Plugin) plugin)));
     }
 
     @Test
@@ -160,9 +158,8 @@ class PluginFactoryUnitTest extends PluginTestUtils {
         pluginFactory.loadAllPlugin(emptyConfig());
         // Then
         assertThat(PluginFactory.isPluginLoaded(plugin), is(equalTo(true)));
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(2)));
-        assertThat(pluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
-        assertThat(pluginFactory.getAllPlugin().get(1), is(equalTo((Plugin) plugin)));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
+        assertThat(pluginFactory.getAllPlugin().get(0), is(equalTo((Plugin) plugin)));
     }
 
     @Test
@@ -177,15 +174,13 @@ class PluginFactoryUnitTest extends PluginTestUtils {
         otherPluginFactory.loadAllPlugin(emptyConfig());
         // Then
         assertThat(PluginFactory.isPluginLoaded(plugin), is(equalTo(true)));
-        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(2)));
-        assertThat(otherPluginFactory.getAllPlugin(), hasSize(equalTo(2)));
-        assertThat(pluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
-        assertThat(otherPluginFactory.getAllPlugin().get(0), is(not(equalTo((Plugin) plugin))));
-        assertThat(pluginFactory.getAllPlugin().get(1), is(equalTo((Plugin) plugin)));
-        assertThat(otherPluginFactory.getAllPlugin().get(1), is(equalTo((Plugin) plugin)));
+        assertThat(pluginFactory.getAllPlugin(), hasSize(equalTo(1)));
+        assertThat(otherPluginFactory.getAllPlugin(), hasSize(equalTo(1)));
+        assertThat(pluginFactory.getAllPlugin().get(0), is(equalTo((Plugin) plugin)));
+        assertThat(otherPluginFactory.getAllPlugin().get(0), is(equalTo((Plugin) plugin)));
         assertThat(
-                pluginFactory.getAllPlugin().get(1),
-                is(not(sameInstance(otherPluginFactory.getAllPlugin().get(1)))));
+                pluginFactory.getAllPlugin().get(0),
+                is(not(sameInstance(otherPluginFactory.getAllPlugin().get(0)))));
     }
 
     @Test

@@ -24,12 +24,15 @@ import org.parosproxy.paros.model.HistoryReference;
 import org.zaproxy.zap.view.messagecontainer.http.HttpMessageContainer;
 import org.zaproxy.zap.view.popup.PopupMenuItemHistoryReferenceContainer;
 
+@SuppressWarnings("serial")
 public class PopupMenuShowInHistory extends PopupMenuItemHistoryReferenceContainer {
 
     private static final long serialVersionUID = 1L;
     private final ExtensionHistory extension;
 
-    /** @param label */
+    /**
+     * @param label
+     */
     public PopupMenuShowInHistory(String label, ExtensionHistory extension) {
         super(label);
         this.extension = extension;

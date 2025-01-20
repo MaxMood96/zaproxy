@@ -62,11 +62,17 @@
 // ZAP: 2021/05/10 Use authority for CONNECT requests.
 // ZAP: 2021/07/16 Issue 6691: Do not add zero Content-Length by default in GET requests
 // ZAP: 2021/07/19 Include SVG in isImage().
+// ZAP: 2022/09/12 Allow arbitrary HTTP versions.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2022/11/22 Lower case the HTTP field names for compatibility with HTTP/2.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2025/01/08 Add local address.
 package org.parosproxy.paros.network;
 
 import java.io.UnsupportedEncodingException;
 import java.net.HttpCookie;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URLEncoder;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -87,17 +93,17 @@ public class HttpRequestHeader extends HttpHeader {
      *
      * @since 2.8.0
      */
-    public static final String ACCEPT = "Accept";
+    public static final String ACCEPT = "accept";
 
     /**
      * The {@code Origin} request header.
      *
      * @since 2.8.0
      */
-    public static final String ORIGIN = "Origin";
+    public static final String ORIGIN = "origin";
 
     private static final long serialVersionUID = 4156598327921777493L;
-    private static final Logger log = LogManager.getLogger(HttpRequestHeader.class);
+    private static final Logger LOGGER = LogManager.getLogger(HttpRequestHeader.class);
 
     // method list
     public static final String CONNECT = "CONNECT";
@@ -115,7 +121,7 @@ public class HttpRequestHeader extends HttpHeader {
     public static final String[] METHODS = {
         CONNECT, DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, TRACE, TRACK
     };
-    public static final String HOST = "Host";
+    public static final String HOST = "host";
     private static final Pattern patternRequestLine =
             Pattern.compile(p_METHOD + p_SP + p_URI + p_SP + p_VERSION, Pattern.CASE_INSENSITIVE);
     // private static final Pattern patternHostHeader
@@ -140,6 +146,7 @@ public class HttpRequestHeader extends HttpHeader {
     private URI mUri;
     private String mHostName;
     private InetAddress senderAddress;
+    private InetSocketAddress localAddress;
 
     /**
      * The host port number of this request message, a non-negative integer.
@@ -228,7 +235,7 @@ public class HttpRequestHeader extends HttpHeader {
                             + (uri.getPort() > 0 ? ":" + Integer.toString(uri.getPort()) : ""));
 
         } catch (URIException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         setHeader(USER_AGENT, defaultUserAgent);
@@ -290,14 +297,12 @@ public class HttpRequestHeader extends HttpHeader {
 
         } catch (HttpMalformedHeaderException e) {
             mMalformedHeader = true;
-            if (log.isDebugEnabled()) {
-                log.debug("Malformed header: " + data, e);
-            }
+            LOGGER.debug("Malformed header: {}", data, e);
 
             throw e;
 
         } catch (Exception e) {
-            log.error("Failed to parse:\n" + data, e);
+            LOGGER.error("Failed to parse:\n{}", data, e);
             mMalformedHeader = true;
             throw new HttpMalformedHeaderException(e.getMessage());
         }
@@ -455,13 +460,6 @@ public class HttpRequestHeader extends HttpHeader {
         String sUri = matcher.group(2);
         mVersion = matcher.group(3);
 
-        if (!mVersion.equalsIgnoreCase(HTTP09)
-                && !mVersion.equalsIgnoreCase(HTTP10)
-                && !mVersion.equalsIgnoreCase(HTTP11)) {
-            mMalformedHeader = true;
-            throw new HttpMalformedHeaderException("Unexpected version: " + mVersion);
-        }
-
         if (mMethod.equalsIgnoreCase(CONNECT)) {
             parseHostName(sUri);
             mUri = URI.fromAuthority(sUri);
@@ -519,8 +517,8 @@ public class HttpRequestHeader extends HttpHeader {
             hostName = ((mUri.getHost() != null) ? mUri.getHost() : mHostName);
 
         } catch (URIException e) {
-            if (log.isDebugEnabled()) {
-                log.warn(e);
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.warn(e);
             }
         }
 
@@ -586,7 +584,7 @@ public class HttpRequestHeader extends HttpHeader {
             }
 
         } catch (URIException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         return false;
@@ -607,6 +605,7 @@ public class HttpRequestHeader extends HttpHeader {
     public String getPrimeHeader() {
         return getMethod() + " " + getURI().toString() + " " + getVersion();
     }
+
     /*
      * private static final char[] DELIM_UNWISE_CHAR = { '<', '>', '#', '"', '
      * ', '{', '}', '|', '\\', '^', '[', ']', '`' };
@@ -689,7 +688,7 @@ public class HttpRequestHeader extends HttpHeader {
                 mUri.setQuery("");
 
             } catch (URIException e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
 
             return;
@@ -712,7 +711,7 @@ public class HttpRequestHeader extends HttpHeader {
                 mUri.setQuery("");
 
             } catch (URIException e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
 
             return;
@@ -726,7 +725,7 @@ public class HttpRequestHeader extends HttpHeader {
             mUri.setQuery(query);
 
         } catch (URIException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 
@@ -837,7 +836,7 @@ public class HttpRequestHeader extends HttpHeader {
 
                 } catch (IllegalArgumentException e) {
                     // Occurs while scanning ;)
-                    log.debug(e.getMessage() + " " + htmlParameter.getName());
+                    LOGGER.debug("{} {}", e.getMessage(), htmlParameter.getName());
                 }
             }
         }
@@ -863,6 +862,30 @@ public class HttpRequestHeader extends HttpHeader {
      */
     public InetAddress getSenderAddress() {
         return senderAddress;
+    }
+
+    /**
+     * Sets the local address.
+     *
+     * <p>This information is not persisted to the session.
+     *
+     * @param address the local address.
+     * @since 2.16.0
+     */
+    public void setLocalAddress(InetSocketAddress address) {
+        localAddress = address;
+    }
+
+    /**
+     * Gets the local address where (e.g. server, proxy) this request was received, if any.
+     *
+     * <p>This information is not persisted to the session.
+     *
+     * @return the local address.
+     * @since 2.16.0
+     */
+    public InetSocketAddress getLocalAddress() {
+        return localAddress;
     }
 
     /**

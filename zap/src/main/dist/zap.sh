@@ -41,20 +41,16 @@ if [ "`echo ${JAVA_OUTPUT} | grep "continuing with system-provided Java"`" ] ; t
   unset JAVA_HOME
 fi
 
-DEFAULTJAVAGC="-XX:+UseG1GC"
+DEFAULTJAVAGC=""
 
 JAVA_VERSION=$(java -version 2>&1 | awk -F\" '/version/ { print $2 }')
 JAVA_MAJOR_VERSION=${JAVA_VERSION%%[.|-]*}
 JAVA_MINOR_VERSION=$(echo $JAVA_VERSION | awk -F\. '{ print $2 }')
 
-# JEP 223, newer Java versions (>= 9) no longer use 1 as major version
-if [ $JAVA_MAJOR_VERSION -ge 9 ]; then
-  DEFAULTJAVAGC=""
-  echo "Found Java version $JAVA_VERSION"
-elif [ $JAVA_MAJOR_VERSION -ge 1 ] && [ $JAVA_MINOR_VERSION -ge 8 ]; then
+if [ $JAVA_MAJOR_VERSION -ge 11 ]; then
   echo "Found Java version $JAVA_VERSION"
 else
-  echo "Exiting: ZAP requires a minimum of Java 8 to run, found $JAVA_VERSION"
+  echo "Exiting: ZAP requires a minimum of Java 11 to run, found $JAVA_VERSION"
   exit 1
 fi
 
@@ -69,9 +65,31 @@ if [ -f "$JVMPROPS" ]; then
   # Local jvm properties file present
   JMEM=$(head -1 "$JVMPROPS")
 elif [ "$OS" = "Linux" ]; then
-  MEM=$(expr $(sed -n 's/MemTotal:[ ]\{1,\}\([0-9]\{1,\}\) kB/\1/p' /proc/meminfo) / 1024)
+    HOSTMEM=$(expr $(sed -n 's/MemTotal:[ ]\{1,\}\([0-9]\{1,\}\) kB/\1/p' /proc/meminfo) / 1024)
+    if [ "$IS_CONTAINERIZED" = "true" ]; then
+        # Check if memory.stat exists so it can be used to determine the memory limit
+        if [ -f /sys/fs/cgroup/memory/memory.stat ]; then
+            # If we are running in a container, we need to use the cgroup memory limit
+            MEMLIMIT=$(grep hierarchical_memory_limit /sys/fs/cgroup/memory/memory.stat | cut -d' ' -f2)
+            # If the cgroup memory limit is not set, use the host memory
+            if [ "$MEMLIMIT" -eq "9223372036854771712" ]; then
+                MEM=$HOSTMEM
+            else
+                MEM=$(expr $MEMLIMIT / 1024 / 1024)
+            fi
+        else
+            MEM=$HOSTMEM
+        fi
+    else
+        MEM=$HOSTMEM
+    fi
 elif [ "$OS" = "Darwin" ]; then
   MEM=$(system_profiler SPMemoryDataType | sed -n -e 's/.*Size: \([0-9]\{1,\}\) GB/\1/p' | awk '{s+=$0} END {print s*1024}')
+  if [ "$MEM" = "0" ]; then
+    # Not sure why macOS uses both "Size" and "Memory" on different systems we have tested..
+    MEM=$(system_profiler SPMemoryDataType | sed -n -e 's/.*Memory: \([0-9]\{1,\}\) GB/\1/p' | awk '{s+=$0} END {print s*1024}')
+  fi
+  
 elif [ "$OS" = "SunOS" ]; then
   MEM=$(/usr/sbin/prtconf | awk '/Memory/{print $3}')
 elif [ "$OS" = "FreeBSD" ]; then
@@ -125,7 +143,7 @@ fi
 # Start ZAP; it's likely that -Xdock:icon would be ignored on other platforms, but this is known to work
 if [ "$OS" = "Darwin" ]; then
   # It's likely that -Xdock:icon would be ignored on other platforms, but this is known to work
-  exec java ${JMEM} ${JAVAGC} -Xdock:icon="../Resources/ZAP.icns" -jar "${BASEDIR}/@zapJar@" "${ARGS[@]}"
+  exec java ${JMEM} ${JAVAGC} ${JAVADEBUG} -Xdock:icon="../Resources/ZAP.icns" -jar "${BASEDIR}/@zapJar@" "${ARGS[@]}"
 else
   exec java ${JMEM} ${JAVAGC} ${JAVADEBUG} -jar "${BASEDIR}/@zapJar@" "${ARGS[@]}"
 fi

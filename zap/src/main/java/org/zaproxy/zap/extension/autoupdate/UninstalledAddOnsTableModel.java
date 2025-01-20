@@ -34,13 +34,12 @@ public class UninstalledAddOnsTableModel extends AddOnsTableModel {
     private static final long serialVersionUID = 1L;
 
     private static final String[] COLUMN_NAMES = {
-        "", // Column for warning of running issues (e.g. incorrect Java version, missing
-        // dependency...)
+        Constant.messages.getString("cfu.table.header.note"),
         Constant.messages.getString("cfu.table.header.status"),
         Constant.messages.getString("cfu.table.header.name"),
         Constant.messages.getString("cfu.table.header.desc"),
         Constant.messages.getString("cfu.table.header.update"),
-        ""
+        Constant.messages.getString("cfu.table.header.selected")
     };
 
     private static final int COLUMN_COUNT = COLUMN_NAMES.length;
@@ -68,7 +67,7 @@ public class UninstalledAddOnsTableModel extends AddOnsTableModel {
     public Class<?> getColumnClass(int columnIndex) {
         if (columnIndex == 0) { // Icon
             return Icon.class;
-        } else if (columnIndex == 1) { // Status (Quality)
+        } else if (columnIndex == 1) { // Status
             return StatusUI.class;
         } else if (columnIndex == 5) { // update
             return Boolean.class;

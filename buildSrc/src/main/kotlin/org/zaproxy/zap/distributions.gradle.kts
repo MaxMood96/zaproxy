@@ -1,15 +1,20 @@
 package org.zaproxy.zap
 
+import java.nio.file.Files
+import java.nio.file.Paths
 import de.undercouch.gradle.tasks.download.Download
 import de.undercouch.gradle.tasks.download.Verify
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.zaproxy.zap.tasks.DownloadAddOns
+import org.cyclonedx.gradle.CycloneDxTask
+import org.zaproxy.zap.tasks.internal.Utils
+import org.zaproxy.zap.tasks.CreateDmg
+import org.zaproxy.zap.tasks.DownloadMainAddOns
 import org.zaproxy.zap.tasks.GradleBuildWithGitRepos
+import org.zaproxy.zap.tasks.UpdateMainAddOns
 
 plugins {
     de.undercouch.download
-    nebula.ospackage
 }
 
 val dailyVersion = provider { "D-${extra["creationDate"]}" }
@@ -17,15 +22,42 @@ val dailyVersion = provider { "D-${extra["creationDate"]}" }
 val distDir = file("src/main/dist/")
 val bundledResourcesPath = "src/main/resources/org/zaproxy/zap/resources"
 
+val cyclonedxRuntimeBom by tasks.registering(CycloneDxTask::class) {
+    setIncludeConfigs(listOf(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME))
+    setDestination(layout.buildDirectory.dir("reports/bom-runtime").get().asFile)
+    setOutputFormat("json")
+}
+
 val jar by tasks.existing(Jar::class)
+val jarWithBom by tasks.registering(Jar::class) {
+    destinationDirectory.set(layout.buildDirectory.dir("libs/withBom/"))
 
+    from(jar.map { it.source }) {
+        exclude("MANIFEST.MF")
+    }
+    from(cyclonedxRuntimeBom)
+}
 
-val downloadMainAddOns by tasks.registering(DownloadAddOns::class) {
+tasks.named<CycloneDxTask>("cyclonedxBom") {
+    setDestination(layout.buildDirectory.dir("reports/bom-all").get().asFile)
+}
+
+val mainAddOnsFile = file("src/main/main-add-ons.yml")
+
+val downloadMainAddOns by tasks.registering(DownloadMainAddOns::class) {
     group = "build"
     description = "Downloads the add-ons included in main (non-SNAPSHOT) releases."
 
-    addOnsData.set(file("src/main/add-ons.txt"))
-    outputDir.set(file("$buildDir/mainAddOns"))
+    addOnsData.set(mainAddOnsFile)
+    outputDir.set(layout.buildDirectory.dir("mainAddOns"))
+}
+
+val updateMainAddOns by tasks.registering(UpdateMainAddOns::class) {
+    group = "build"
+    description = "Updates the main add-ons from a ZapVersions.xml file."
+
+    addOnsData.set(mainAddOnsFile)
+    addOnsDataUpdated.set(mainAddOnsFile)
 }
 
 val bundledAddOns: Any = provider {
@@ -37,11 +69,11 @@ val bundledAddOns: Any = provider {
 }
 
 val distFiles by tasks.registering(Sync::class) {
-    destinationDir = file("$buildDir/distFiles")
-    from(jar)
+    destinationDir = layout.buildDirectory.dir("distFiles").get().asFile
+    from(jarWithBom)
     from(distDir) {
         filesMatching(listOf("zap.bat", "zap.sh")) {
-            filter<ReplaceTokens>("tokens" to mapOf("zapJar" to jar.get().archiveFileName.get()))
+            filter<ReplaceTokens>("tokens" to mapOf("zapJar" to jarWithBom.get().archiveFileName.get()))
         }
         exclude("README.weekly")
         exclude("plugin/*.zap")
@@ -54,7 +86,7 @@ val distFiles by tasks.registering(Sync::class) {
         into("xml")
     }
     from(bundledResourcesPath) {
-        include("config.xml", "drivers.xml", "log4j.properties")
+        include("config.xml", "log4j.properties")
         into("xml")
     }
     from(bundledResourcesPath) {
@@ -70,8 +102,6 @@ val distFiles by tasks.registering(Sync::class) {
         into("license")
     }
 }
-
-apply(from = "gradle/debian-package.gradle")
 
 tasks.register<Zip>("distCrossplatform") {
     group = "Distribution"
@@ -91,6 +121,32 @@ tasks.register<Zip>("distCrossplatform") {
     }
 }
 
+val copyCoreAddOns by tasks.registering {
+    inputs.files(mainAddOnsFile)
+    if (version.toString().endsWith("SNAPSHOT")) {
+        inputs.files(bundledAddOns)
+    } else {
+        dependsOn(bundledAddOns)
+    }
+
+    val outputDir = layout.buildDirectory.dir("coreAddOns")
+    outputs.dir(outputDir)
+
+    doLast {
+        val coreAddOns = Utils.parseData(mainAddOnsFile.toPath()).addOns.filter { it -> it.isCore() }.map { it -> it.id }
+
+        sync {
+            from(bundledAddOns) {
+                exclude { details: FileTreeElement ->
+                         !details.path.endsWith(".zap") ||
+                         details.file.name.split("-")[0] !in coreAddOns
+                }
+            }
+            into(outputDir)
+        }
+    }
+}
+
 tasks.register<Zip>("distCore") {
     group = "Distribution"
     description = "Bundles the core distribution."
@@ -99,34 +155,14 @@ tasks.register<Zip>("distCore") {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true
 
-    val liteAddOns = listOf(
-            "ascanrules",
-            "bruteforce",
-            "commonlib",
-            "coreLang",
-            "diff",
-            "gettingStarted",
-            "help",
-            "invoke",
-            "onlineMenu",
-            "plugnhack",
-            "pscanrules",
-            "quickstart",
-            "reveal",
-            "saverawmessage",
-            "tips")
     val topLevelDir = "ZAP_${project.version}"
 
     from(distFiles) {
         into(topLevelDir)
     }
-    from(bundledAddOns) {
+    from(copyCoreAddOns) {
         into("$topLevelDir/plugin")
         exclude("Readme.txt")
-        exclude { details: FileTreeElement ->
-                details.path.endsWith(".zap") &&
-                details.file.name.split("-")[0] !in liteAddOns
-        }
     }
 }
 
@@ -149,114 +185,114 @@ tasks.register<Tar>("distLinux") {
     }
 }
 
-val macOsJreDir = file("$buildDir/macOsJre")
-val macOsJreUnpackDir = File(macOsJreDir, "unpacked")
-val macOsJreVersion = "8u275-b01"
-val macOsJreFile = File(macOsJreDir, "jdk$macOsJreVersion-jre.tar.gz")
+listOf(
+    MacArch("", "", "", "x64", "bf9faf4540001a251e6bfb52b99c7ec5b1f36d3ebe94e104f61a30f173ba8c78"),
+    MacArch("Arm64", "_aarch64", " (ARM64)", "aarch64", "a886b8f2a50eca2e59b45ea59f5a2e8e9d27ff5b5b3b069443a70cda7f27c907")
+).forEach { it ->
 
-val downloadMacOsJre by tasks.registering(Download::class) {
-    src("https://api.adoptopenjdk.net/v2/binary/releases/openjdk8?openjdk_impl=hotspot&os=mac&arch=x64&type=jre&release=jdk$macOsJreVersion")
-    dest(macOsJreFile)
-    connectTimeout(60_000)
-    readTimeout(60_000)
-    onlyIfModified(true)
-    doFirst {
-        require (Os.isFamily(Os.FAMILY_MAC)) {
-            "To build the macOS distribution the OS must be macOS."
+    val volumeName = "ZAP"
+    val appName = "$volumeName.app"
+    val macOsJreDir = layout.buildDirectory.dir("macOsJre${it.suffix}").get().asFile
+    val macOsJreUnpackDir = File(macOsJreDir, "unpacked")
+    val macOsJreVersion = "17.0.13+11"
+    val macOsJreFile = File(macOsJreDir, "jdk$macOsJreVersion-jre.tar.gz")
+
+    val downloadMacOsJre = tasks.register<Download>("downloadMacOsJre${it.suffix}") {
+        src("https://api.adoptium.net/v3/binary/version/jdk-$macOsJreVersion/mac/${it.arch}/jre/hotspot/normal/eclipse?project=jdk")
+        dest(macOsJreFile)
+        connectTimeout(60_000)
+        readTimeout(60_000)
+        onlyIfModified(true)
+        doFirst {
+            require(Os.isFamily(Os.FAMILY_MAC)) {
+                "To build the macOS distribution the OS must be macOS."
+            }
         }
     }
-}
 
-val verifyMacOsJre by tasks.registering(Verify::class) {
-    dependsOn(downloadMacOsJre)
-    src(macOsJreFile)
-    algorithm("SHA-256")
-    checksum("65f50eb542209783f363c342487b0899037d9639ace3ea97518ec973fedb1e27")
-}
-
-val unpackMacOSJre by tasks.registering(Copy::class) {
-    dependsOn(verifyMacOsJre)
-    from(tarTree(macOsJreFile))
-    into(macOsJreUnpackDir)
-    doFirst {
-        delete(macOsJreUnpackDir)
+    val verifyMacOsJre = tasks.register<Verify>("verifyMacOsJre${it.suffix}") {
+        dependsOn(downloadMacOsJre)
+        src(macOsJreFile)
+        algorithm("SHA-256")
+        checksum(it.checksum)
     }
-    doLast {
-        // Rename top level dir to start with "jre" to match the
-        // expectations of zap.sh script.
-        val dirName = macOsJreUnpackDir.listFiles()[0].name
-        ant.withGroovyBuilder {
-            "move"(mapOf("file" to "$macOsJreUnpackDir/$dirName", "tofile" to "$macOsJreUnpackDir/jre-$dirName"))
+
+    val unpackMacOSJre = tasks.register<Copy>("unpackMacOSJre${it.suffix}") {
+        dependsOn(verifyMacOsJre)
+        from(tarTree(macOsJreFile))
+        into(macOsJreUnpackDir)
+        doFirst {
+            delete(macOsJreUnpackDir)
+        }
+        doLast {
+            // Rename top level dir to start with "jre" to match the
+            // expectations of zap.sh script.
+            val dirName = macOsJreUnpackDir.listFiles()[0].name
+            ant.withGroovyBuilder {
+                "move"(mapOf("file" to "$macOsJreUnpackDir/$dirName", "tofile" to "$macOsJreUnpackDir/jre-$dirName"))
+            }
         }
     }
-}
 
-val macOsDistDataDir = file("$buildDir/macOsDistData")
-val prepareDistMac by tasks.registering(Copy::class) {
-    destinationDir = macOsDistDataDir
-    from(unpackMacOSJre) {
-        into("OWASP ZAP.app/Contents/PlugIns/")
-    }
-    from("src/main/macOS/") {
-        filesMatching("**/Info.plist") {
-            filter<ReplaceTokens>("tokens" to mapOf(
-                    "JREDIR" to macOsJreUnpackDir.listFiles()[0].name,
-                    "SHORT_VERSION_STRING" to "$version",
-                    "VERSION_STRING" to "2",
-                    "ZAPJAR" to jar.get().archiveFileName.get()
-            ))
+    val macOsDistDataDir = layout.buildDirectory.dir("macOsDistData${it.suffix}").get().asFile
+    val prepareDistMac = tasks.register<Copy>("prepareDistMac${it.suffix}") {
+        destinationDir = macOsDistDataDir
+        from(unpackMacOSJre) {
+            into("$appName/Contents/PlugIns/")
+        }
+        from("src/main/macOS/") {
+            filesMatching("**/Info.plist") {
+                filter<ReplaceTokens>(
+                    "tokens" to mapOf(
+                        "JREDIR" to macOsJreUnpackDir.listFiles()[0].name,
+                        "SHORT_VERSION_STRING" to "$version",
+                        "VERSION_STRING" to "2",
+                        "ZAPJAR" to jarWithBom.get().archiveFileName.get()
+                    )
+                )
+            }
+        }
+        from("src/main/resources/resource/ZAP.icns") {
+            into("$appName/Contents/Resources/")
+        }
+        val zapDir = "$appName/Contents/Java/"
+        from(distFiles) {
+            into(zapDir)
+            exclude(listOf("zap.bat", "zap.ico"))
+        }
+        from(bundledAddOns) {
+            into("$zapDir/plugin")
+            exclude(listOf("Readme.txt", "*linux*.zap", "*windows*.zap"))
+        }
+
+        doFirst {
+            delete(macOsDistDataDir)
         }
     }
-    from("src/main/resources/resource/ZAP.icns") {
-        into("OWASP ZAP.app/Contents/Resources/")
-    }
-    val zapDir = "OWASP ZAP.app/Contents/Java/"
-    from(distFiles) {
-        into(zapDir)
-        exclude(listOf("zap.bat", "zap.ico"))
-    }
-    from(bundledAddOns) {
-        into("$zapDir/plugin")
-        exclude(listOf("Readme.txt", "*linux*.zap", "*windows*.zap"))
-    }
 
-    doFirst {
-        delete(macOsDistDataDir)
-    }
-    doLast {
-        ant.withGroovyBuilder {
-            "symlink"(mapOf("link" to "$macOsDistDataDir/Applications", "resource" to "/Applications"))
+    tasks.register<CreateDmg>("distMac${it.suffix}") {
+        group = "Distribution"
+        description = "Bundles the macOS${it.taskDesc} distribution."
+
+        dependsOn(prepareDistMac)
+
+        volname.set(volumeName)
+        workingDir.set(macOsDistDataDir)
+        dmg.set(layout.buildDirectory.file("distributions/${volumeName}_$version${it.fileNameSuffix}.dmg"))
+
+        doFirst {
+            val symlink = Paths.get("$macOsDistDataDir/Applications")
+            if (Files.notExists(symlink)) {
+                Files.createSymbolicLink(symlink, Paths.get("/Applications"))
+            }
         }
-    }
-}
-
-tasks.register<Exec>("distMac") {
-    group = "Distribution"
-    description = "Bundles the macOS distribution."
-
-    dependsOn(prepareDistMac)
-
-    val outputDir = file("$buildDir/distributions")
-    workingDir = macOsDistDataDir
-    executable = "hdiutil"
-    args(listOf(
-            "create",
-            "-format", "UDBZ",
-            "-megabytes", "800",
-            "-fs", "HFS+",
-            "-srcfolder", macOsDistDataDir,
-            "-volname", "OWASP ZAP",
-            "$outputDir/ZAP_$version.dmg"))
-
-    doFirst {
-        mkdir(outputDir)
     }
 }
 
 val jarDaily by tasks.registering(Jar::class) {
     archiveVersion.set(dailyVersion)
 
-    from(jar.map { it.source }) {
+    from(jarWithBom.map { it.source }) {
         exclude("MANIFEST.MF")
     }
 }
@@ -293,7 +329,7 @@ val distDaily by tasks.registering(Zip::class) {
     }
     from(distFiles) {
         into(rootDir)
-        exclude(jar.get().archiveFileName.get())
+        exclude(jarWithBom.get().archiveFileName.get())
         exclude("README")
         exclude(startScripts)
     }
@@ -303,7 +339,7 @@ tasks.named("assemble") {
     dependsOn(distDaily)
 }
 
-val weeklyAddOnsDir = file("$buildDir/weeklyAddOns")
+val weeklyAddOnsDir = layout.buildDirectory.dir("weeklyAddOns")
 val buildWeeklyAddOns by tasks.registering(GradleBuildWithGitRepos::class) {
     group = "Distribution"
     description = "Builds the weekly add-ons from source for weekly distribution."
@@ -311,13 +347,14 @@ val buildWeeklyAddOns by tasks.registering(GradleBuildWithGitRepos::class) {
     repositoriesDirectory.set(temporaryDir)
     repositoriesDataFile.set(file("src/main/weekly-add-ons.json"))
     clean.set(true)
+    quiet.set(System.getenv("ZAP_WEEKLY_QUIET") != "false")
 
     tasks {
         if (System.getenv("ZAP_WEEKLY_ADDONS_NO_TEST") != "true") {
             register("test")
         }
         register("copyZapAddOn") {
-            args.set(listOf("--into=$weeklyAddOnsDir"))
+            args.set(listOf("--into=${weeklyAddOnsDir.get().asFile}"))
         }
     }
 
@@ -348,11 +385,11 @@ val prepareDistWeekly by tasks.registering(Sync::class) {
         rename { "README" }
     }
     from(distFiles) {
-        exclude(jar.get().archiveFileName.get())
+        exclude(jarWithBom.get().archiveFileName.get())
         exclude("README")
         exclude(startScripts)
     }
-    into(file("$buildDir/distFilesWeekly"))
+    into(layout.buildDirectory.dir("distFilesWeekly"))
 }
 
 tasks.register<Zip>("distWeekly") {
@@ -367,3 +404,5 @@ tasks.register<Zip>("distWeekly") {
         into("ZAP_${dailyVersion.get()}")
     }
 }
+
+data class MacArch(val suffix: String, val fileNameSuffix: String, val taskDesc: String, val arch: String, val checksum: String)

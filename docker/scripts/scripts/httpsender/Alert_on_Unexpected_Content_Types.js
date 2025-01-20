@@ -3,34 +3,24 @@
 // But it can be easily changed.
 
 var Pattern = Java.type("java.util.regex.Pattern")
-var model = Java.type("org.parosproxy.paros.model.Model").getSingleton()
 
 var pluginid = 100001	// https://github.com/zaproxy/zaproxy/blob/main/docs/scanners.md
 
-var extensionAlert = org.parosproxy.paros.control.Control.getSingleton().getExtensionLoader().getExtension(
-		org.zaproxy.zap.extension.alert.ExtensionAlert.NAME)
+var extensionAlert = control.getExtensionLoader().getExtension(org.zaproxy.zap.extension.alert.ExtensionAlert.NAME)
 
 var expectedTypes = [
-		"application/health+json",
-		"application/json",
 		"application/octet-stream",
-		"application/problem+json",
-		"application/problem+xml",
-		"application/soap+xml",
-		"application/vnd.api+json",
-		"application/xml",
-		"application/x-yaml",
-		"text/x-json",
-		"text/json",
-		"text/yaml"
+		"text/plain"
 	]
+
+var expectedTypeGroups = ["json", "yaml", "xml"]
 
 function sendingRequest(msg, initiator, helper) {
 	// Nothing to do
 }
 
 function responseReceived(msg, initiator, helper) {
-	if (isGloballyExcluded(msg) || initiator == 7) { // CHECK_FOR_UPDATES_INITIATOR
+	if (isGloballyExcluded(msg)) {
 		// Not of interest.
 		return
 	}
@@ -41,7 +31,7 @@ function responseReceived(msg, initiator, helper) {
 			if (ctype.indexOf(";") > 0) {
 				ctype = ctype.substring(0, ctype.indexOf(";"))
 			}
-			if (expectedTypes.indexOf(ctype) < 0) {
+			if (!msg.getResponseHeader().hasContentType(expectedTypeGroups) && expectedTypes.indexOf(ctype) < 0) {
 				// Another rule will complain if theres no type
 		
 				var risk = 1	// Low
@@ -86,8 +76,7 @@ function responseReceived(msg, initiator, helper) {
 							type = 15 // User - fallback
 							break
 					}
-					ref = new org.parosproxy.paros.model.HistoryReference(
-						org.parosproxy.paros.model.Model.getSingleton().getSession(), type, msg)
+					ref = new org.parosproxy.paros.model.HistoryReference(model.getSession(), type, msg)
 				}
 				alert.setMessage(msg)
 				alert.setUri(msg.getRequestHeader().getURI().toString())

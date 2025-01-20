@@ -26,6 +26,11 @@ if [ ! -f $HOME/webswing-server.war ]; then
     exit 1
 fi
 
+if [ ! -f $HOME/server/webswing-jetty-launcher.jar ]; then
+    echo "Webswing jetty launcher not found in $HOME/server folder"
+    exit 1
+fi
+
 if [ ! -f $JAVA_HOME/bin/java ]; then
     echo "Java installation not found in $JAVA_HOME folder"
     exit 1
@@ -62,8 +67,8 @@ case "$1" in
         
         # Set up the ZAP runtime options
         ZAP_OPTS="-host 0.0.0.0 -port 8090"
-        ZAP_PUBLIC="/zap/wrk/owasp_zap_root_ca.cer"
-        ZAP_PRIVATE="/zap/wrk/owasp_zap_root_ca.key"
+        ZAP_PUBLIC="/zap/wrk/zap_root_ca.cer"
+        ZAP_PRIVATE="/zap/wrk/zap_root_ca.key"
 
         if [ ! -z "${ZAP_WEBSWING_OPTS}" ]; then
           # Replace them with those set in the env var
@@ -80,7 +85,7 @@ case "$1" in
         # Use ; for sed separators so we can use the directory slashes
         sed -i "s;ZAP_OPTS;${ZAP_OPTS};" webswing.config
         
-        $JAVA_HOME/bin/java $JAVA_OPTS -jar webswing-server.war $OPTS 2>> $LOG >> $LOG
+        $JAVA_HOME/bin/java $JAVA_OPTS -jar $HOME/server/webswing-jetty-launcher.jar -w webswing-server.war $OPTS 2>> $LOG >> $LOG
         ;;
     *)
         xvfb-run $SCRIPTPATH$0 run

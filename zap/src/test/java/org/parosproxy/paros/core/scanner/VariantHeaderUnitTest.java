@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Map;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -201,6 +202,21 @@ class VariantHeaderUnitTest {
     }
 
     @Test
+    void shouldOverrideHostHeaderOnValueModification() {
+        // Given
+        VariantHeader variantHeader = new VariantHeader();
+        HttpMessage message = createMessageWithHeaders(header("host", "X"));
+        variantHeader.setMessage(message);
+        // When
+        String injectedHeader =
+                variantHeader.setParameter(message, header("host", "X", 0), "host", "Value");
+        // Then
+        assertThat(injectedHeader, is(equalTo("host: Value")));
+        assertThat(message, containsHeader("host", "Value"));
+        assertThat(message.getUserObject(), is(Map.of("host", "Value")));
+    }
+
+    @Test
     void shouldRemoveHeaderIfInjectedHeaderValueIsNull() {
         // Given
         VariantHeader variantHeader = new VariantHeader();
@@ -293,7 +309,7 @@ class VariantHeaderUnitTest {
     }
 
     private static Matcher<HttpMessage> containsHeader(final String name, final String value) {
-        return new BaseMatcher<HttpMessage>() {
+        return new BaseMatcher<>() {
 
             @Override
             public boolean matches(Object actualValue) {

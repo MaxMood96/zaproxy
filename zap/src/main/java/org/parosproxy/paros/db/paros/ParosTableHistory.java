@@ -44,6 +44,11 @@
 // ZAP: 2019/06/01 Normalise line endings.
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2022/02/03 Removed getHistoryList(long, int) and getHistoryList(long)
+// ZAP: 2022/02/25 Remove code deprecated in 2.5.0
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/09/12 Implement setDatabaseOptions(DatabaseParam) and use those options.
 package org.parosproxy.paros.db.paros;
 
 import java.nio.charset.StandardCharsets;
@@ -55,16 +60,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Vector;
+import java.util.function.ToIntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hsqldb.types.Types;
-import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.db.DatabaseException;
 import org.parosproxy.paros.db.DbUtils;
 import org.parosproxy.paros.db.RecordHistory;
@@ -111,29 +116,26 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
     private static boolean isExistStatusCode = false;
 
     // ZAP: Added logger
-    private static final Logger log = LogManager.getLogger(ParosTableHistory.class);
+    private static final Logger LOGGER = LogManager.getLogger(ParosTableHistory.class);
+
+    private DatabaseParam options;
 
     private boolean bodiesAsBytes;
+    private int configuredrequestbodysize = -1;
+    private int configuredresponsebodysize = -1;
 
     public ParosTableHistory() {}
 
-    // ZAP: Allow the request and response body sizes to be user-specifiable as far as possible
-    int configuredrequestbodysize = -1;
-    int configuredresponsebodysize = -1;
+    @Override
+    public void setDatabaseOptions(DatabaseParam options) {
+        this.options = Objects.requireNonNull(options);
+    }
 
     @Override
     protected void reconnect(Connection conn) throws DatabaseException {
         try {
-            // ZAP: Allow the request and response body sizes to be user-specifiable as far as
-            // possible
-            // re-load the configuration data from file, to get the configured length of the request
-            // and response bodies
-            // this will later be compared to the actual lengths of these fields in the database (in
-            // updateTable(Connection c))
-            DatabaseParam dbparams = new DatabaseParam();
-            dbparams.load(Constant.getInstance().FILE_CONFIG);
-            this.configuredrequestbodysize = dbparams.getRequestBodySize();
-            this.configuredresponsebodysize = dbparams.getResponseBodySize();
+            configuredrequestbodysize = getBodySizeOption(DatabaseParam::getRequestBodySize);
+            configuredresponsebodysize = getBodySizeOption(DatabaseParam::getResponseBodySize);
 
             bodiesAsBytes = true;
 
@@ -242,9 +244,7 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                     try {
                         stmt.close();
                     } catch (SQLException e) {
-                        if (log.isDebugEnabled()) {
-                            log.debug(e.getMessage(), e);
-                        }
+                        LOGGER.debug(e.getMessage(), e);
                     }
                 }
             }
@@ -252,6 +252,10 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
         } catch (SQLException e) {
             throw new DatabaseException(e);
         }
+    }
+
+    private int getBodySizeOption(ToIntFunction<DatabaseParam> function) {
+        return options != null ? function.applyAsInt(options) : DatabaseParam.DEFAULT_BODY_SIZE;
     }
 
     // ZAP: Added the method.
@@ -306,14 +310,11 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
             try {
                 if (requestbodysizeindb != this.configuredrequestbodysize
                         && this.configuredrequestbodysize > 0) {
-                    if (log.isDebugEnabled())
-                        log.debug(
-                                "Extending table "
-                                        + TABLE_NAME
-                                        + " request body length from "
-                                        + requestbodysizeindb
-                                        + " to "
-                                        + this.configuredrequestbodysize);
+                    LOGGER.debug(
+                            "Extending table {} request body length from {} to {}",
+                            TABLE_NAME,
+                            requestbodysizeindb,
+                            this.configuredrequestbodysize);
                     DbUtils.execute(
                             connection,
                             "ALTER TABLE "
@@ -323,26 +324,20 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                                     + " VARBINARY("
                                     + this.configuredrequestbodysize
                                     + ")");
-                    if (log.isDebugEnabled())
-                        log.debug(
-                                "Completed extending table "
-                                        + TABLE_NAME
-                                        + " request body length from "
-                                        + requestbodysizeindb
-                                        + " to "
-                                        + this.configuredrequestbodysize);
+                    LOGGER.debug(
+                            "Completed extending table {} request body length from {} to {}",
+                            TABLE_NAME,
+                            requestbodysizeindb,
+                            this.configuredrequestbodysize);
                 }
 
                 if (responsebodysizeindb != this.configuredresponsebodysize
                         && this.configuredresponsebodysize > 0) {
-                    if (log.isDebugEnabled())
-                        log.debug(
-                                "Extending table "
-                                        + TABLE_NAME
-                                        + " response body length from "
-                                        + responsebodysizeindb
-                                        + " to "
-                                        + this.configuredresponsebodysize);
+                    LOGGER.debug(
+                            "Extending table {} response body length from {} to {}",
+                            TABLE_NAME,
+                            responsebodysizeindb,
+                            this.configuredresponsebodysize);
                     DbUtils.execute(
                             connection,
                             "ALTER TABLE "
@@ -352,26 +347,21 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                                     + " VARBINARY("
                                     + this.configuredresponsebodysize
                                     + ")");
-                    if (log.isDebugEnabled())
-                        log.debug(
-                                "Completed extending table "
-                                        + TABLE_NAME
-                                        + " response body length from "
-                                        + responsebodysizeindb
-                                        + " to "
-                                        + this.configuredresponsebodysize);
+                    LOGGER.debug(
+                            "Completed extending table {} response body length from {} to {}",
+                            TABLE_NAME,
+                            responsebodysizeindb,
+                            this.configuredresponsebodysize);
                 }
             } catch (SQLException e) {
-                log.error("An error occurred while modifying a column length on " + TABLE_NAME);
-                log.error(
-                        "The 'Maximum Request Body Size' value in the Database Options needs to be set to at least "
-                                + requestbodysizeindb
-                                + " to avoid this error");
-                log.error(
-                        "The 'Maximum Response Body Size' value in the Database Options needs to be set to at least "
-                                + responsebodysizeindb
-                                + " to avoid this error");
-                log.error("The SQL Exception was:", e);
+                LOGGER.error("An error occurred while modifying a column length on {}", TABLE_NAME);
+                LOGGER.error(
+                        "The 'Maximum Request Body Size' value in the Database Options needs to be set to at least {} to avoid this error",
+                        requestbodysizeindb);
+                LOGGER.error(
+                        "The 'Maximum Response Body Size' value in the Database Options needs to be set to at least {} to avoid this error",
+                        responsebodysizeindb);
+                LOGGER.error("The SQL Exception was:", e);
                 throw e;
             }
         } catch (SQLException e) {
@@ -469,14 +459,22 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                     "The actual Request Body length "
                             + reqBody.length
                             + " is greater than the configured request body length "
-                            + this.configuredrequestbodysize);
+                            + this.configuredrequestbodysize
+                            + " for "
+                            + method
+                            + " "
+                            + uri);
         }
         if (resBody.length > this.configuredresponsebodysize) {
             throw new SQLException(
                     "The actual Response Body length "
                             + resBody.length
                             + " is greater than the configured response body length "
-                            + this.configuredresponsebodysize);
+                            + this.configuredresponsebodysize
+                            + " for "
+                            + method
+                            + " "
+                            + uri);
         }
 
         psInsert.setLong(1, sessionId);
@@ -695,28 +693,6 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
         return getHistoryIdsByParams(sessionId, startAtHistoryId, false, histTypes);
     }
 
-    /**
-     * @deprecated (2.3.0) Use {@link #getHistoryIdsOfHistType(long, int...)} instead. If the
-     *     thread-safety provided by the class {@code Vector} is really required "wrap" the returned
-     *     List with {@link Collections#synchronizedList(List)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public Vector<Integer> getHistoryList(long sessionId, int histType) throws DatabaseException {
-        return new Vector<>(getHistoryIdsOfHistType(sessionId, histType));
-    }
-
-    /**
-     * @deprecated (2.3.0) Use {@link #getHistoryIds(long)} instead. If the thread-safety provided
-     *     by the class {@code Vector} is really required "wrap" the returned List with {@link
-     *     Collections#synchronizedList(List)} instead.
-     */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public Vector<Integer> getHistoryList(long sessionId) throws DatabaseException {
-        return new Vector<>(getHistoryIds(sessionId));
-    }
-
     @Override
     public List<Integer> getHistoryList(
             long sessionId, int histType, String filter, boolean isRequest)
@@ -886,28 +862,6 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
     }
 
     /**
-     * @deprecated (2.5.0) Use {@link HistoryReference#addTemporaryType(int)} instead.
-     * @since 2.4
-     * @param historyType the history type that will be set as temporary
-     * @see #deleteTemporary()
-     */
-    @Deprecated
-    public static void setHistoryTypeAsTemporary(int historyType) {
-        HistoryReference.addTemporaryType(historyType);
-    }
-
-    /**
-     * @deprecated (2.5.0) Use {@link HistoryReference#removeTemporaryType(int)} instead.
-     * @since 2.4
-     * @param historyType the history type that will be marked as temporary
-     * @see #deleteTemporary()
-     */
-    @Deprecated
-    public static void unsetHistoryTypeAsTemporary(int historyType) {
-        HistoryReference.removeTemporaryType(historyType);
-    }
-
-    /**
      * Deletes all records whose history type was marked as temporary (by calling {@code
      * setHistoryTypeTemporary(int)}).
      *
@@ -1040,7 +994,7 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                     psReadCache.close();
                 } catch (Exception e) {
                     // ZAP: Log exceptions
-                    log.warn(e.getMessage(), e);
+                    LOGGER.warn(e.getMessage(), e);
                 }
             }
 
@@ -1099,7 +1053,7 @@ public class ParosTableHistory extends ParosAbstractTable implements TableHistor
                     psReadCache.close();
                 } catch (Exception e) {
                     // ZAP: Log exceptions
-                    log.warn(e.getMessage(), e);
+                    LOGGER.warn(e.getMessage(), e);
                 }
             }
 

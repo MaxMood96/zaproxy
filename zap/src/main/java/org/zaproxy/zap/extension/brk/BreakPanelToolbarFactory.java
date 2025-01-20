@@ -35,6 +35,8 @@ import org.parosproxy.paros.control.Control;
 import org.parosproxy.paros.view.TabbedPanel;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.extension.brk.impl.http.HttpBreakpointMessage;
+import org.zaproxy.zap.utils.DisplayUtils;
+import org.zaproxy.zap.utils.Stats;
 import org.zaproxy.zap.view.TabbedPanel2;
 import org.zaproxy.zap.view.ZapToggleButton;
 
@@ -49,6 +51,8 @@ import org.zaproxy.zap.view.ZapToggleButton;
 //
 
 public class BreakPanelToolbarFactory {
+
+    private static final String ICON_RESOURCE_PATH = "/resource/icon/";
 
     private ContinueButtonAction continueButtonAction;
     private StepButtonAction stepButtonAction;
@@ -99,8 +103,19 @@ public class BreakPanelToolbarFactory {
     /** The object to synchronise changes to {@link #countCaughtMessages}. */
     private final Object countLock = new Object();
 
+    private final ExtensionBreak extensionBreak;
+
     public BreakPanelToolbarFactory(BreakpointsParam breakpointsParams, BreakPanel breakPanel) {
+        this(null, breakpointsParams, breakPanel);
+    }
+
+    public BreakPanelToolbarFactory(
+            ExtensionBreak extensionBreak,
+            BreakpointsParam breakpointsParams,
+            BreakPanel breakPanel) {
         super();
+
+        this.extensionBreak = extensionBreak;
 
         continueButtonAction = new ContinueButtonAction();
         stepButtonAction = new StepButtonAction();
@@ -153,6 +168,12 @@ public class BreakPanelToolbarFactory {
         return ignoreRulesEnable;
     }
 
+    private static ImageIcon getScaledIcon(String path) {
+        return DisplayUtils.getScaledIcon(
+                new ImageIcon(
+                        BreakPanelToolbarFactory.class.getResource(ICON_RESOURCE_PATH + path)));
+    }
+
     private void setActiveIcon(boolean active) {
         if (active) {
             // Have to do this before the getParent() call
@@ -162,16 +183,11 @@ public class BreakPanelToolbarFactory {
             TabbedPanel parent = (TabbedPanel) breakPanel.getParent();
             if (active) {
                 parent.setIconAt(
-                        parent.indexOfComponent(breakPanel),
-                        new ImageIcon(
-                                BreakPanelToolbarFactory.class.getResource(
-                                        "/resource/icon/16/101.png"))); // Red X
+                        parent.indexOfComponent(breakPanel), getScaledIcon("16/101.png")); // Red X
             } else {
                 parent.setIconAt(
                         parent.indexOfComponent(breakPanel),
-                        new ImageIcon(
-                                BreakPanelToolbarFactory.class.getResource(
-                                        "/resource/icon/16/101grey.png"))); // Grey X
+                        getScaledIcon("16/101grey.png")); // Grey X
             }
             if (parent instanceof TabbedPanel2) {
                 // If possible lock the tab while it is active so it cant be closed
@@ -251,9 +267,8 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnBreakRequest;
 
         btnBreakRequest = new ZapToggleButton(breakRequestsButtonAction);
-        btnBreakRequest.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource("/resource/icon/16/105r.png")));
+        btnBreakRequest.setSelectedIcon(getScaledIcon("16/105r.png"));
+
         btnBreakRequest.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.request.unset"));
 
@@ -264,9 +279,8 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnBreakResponse;
 
         btnBreakResponse = new ZapToggleButton(breakResponsesButtonAction);
-        btnBreakResponse.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource("/resource/icon/16/106r.png")));
+        btnBreakResponse.setSelectedIcon(getScaledIcon("16/106r.png"));
+
         btnBreakResponse.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.response.unset"));
 
@@ -277,9 +291,8 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnBreakAll;
 
         btnBreakAll = new ZapToggleButton(breakAllButtonAction);
-        btnBreakAll.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource("/resource/icon/16/151.png")));
+        btnBreakAll.setSelectedIcon(getScaledIcon("16/151.png"));
+
         btnBreakAll.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.all.unset"));
 
@@ -290,10 +303,7 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnBreakOnJavaScript;
 
         btnBreakOnJavaScript = new ZapToggleButton(setBreakOnJavaScriptAction);
-        btnBreakOnJavaScript.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource(
-                                "/resource/icon/breakTypes/javascriptNotBreaking.png")));
+        btnBreakOnJavaScript.setSelectedIcon(getScaledIcon("breakTypes/javascriptNotBreaking.png"));
         btnBreakOnJavaScript.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.brkjavascript.set"));
 
@@ -305,9 +315,7 @@ public class BreakPanelToolbarFactory {
 
         btnBreakOnCssAndFonts = new ZapToggleButton(setBreakOnCssAndFontsAction);
         btnBreakOnCssAndFonts.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource(
-                                "/resource/icon/breakTypes/cssAndFontsNotBreaking.png")));
+                getScaledIcon("breakTypes/cssAndFontsNotBreaking.png"));
         btnBreakOnCssAndFonts.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.brkcssfonts.set"));
 
@@ -318,10 +326,7 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnBreakOnMultimedia;
 
         btnBreakOnMultimedia = new ZapToggleButton(setBreakOnMultimediaAction);
-        btnBreakOnMultimedia.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource(
-                                "/resource/icon/breakTypes/multimediaNotBreaking.png")));
+        btnBreakOnMultimedia.setSelectedIcon(getScaledIcon("breakTypes/multimediaNotBreaking.png"));
         btnBreakOnMultimedia.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.brkmultimedia.set"));
 
@@ -332,10 +337,8 @@ public class BreakPanelToolbarFactory {
         ZapToggleButton btnOnlyBreakOnScope;
 
         btnOnlyBreakOnScope = new ZapToggleButton(setOnlyBreakOnScopeAction);
-        btnOnlyBreakOnScope.setSelectedIcon(
-                new ImageIcon(
-                        BreakPanelToolbarFactory.class.getResource(
-                                "/resource/icon/fugue/target.png")));
+        btnOnlyBreakOnScope.setSelectedIcon(getScaledIcon("fugue/target.png"));
+
         btnOnlyBreakOnScope.setSelectedToolTipText(
                 Constant.messages.getString("brk.toolbar.button.brkOnlyOnScope.unset"));
 
@@ -357,10 +360,9 @@ public class BreakPanelToolbarFactory {
         }
         // If forces or either break buttons are pressed force the proxy to submit requests and
         // responses serially
-        if (forceSerialize || isBreakRequest() || isBreakResponse() || isBreakAll) {
-            Control.getSingleton().getProxy().setSerialize(true);
-        } else {
-            Control.getSingleton().getProxy().setSerialize(false);
+        boolean serialise = forceSerialize || isBreakRequest() || isBreakResponse() || isBreakAll;
+        if (extensionBreak != null) {
+            extensionBreak.getSerialisationRequiredListeners().forEach(e -> e.accept(serialise));
         }
     }
 
@@ -510,6 +512,7 @@ public class BreakPanelToolbarFactory {
 
     protected void step() {
         step = true;
+        Stats.incCounter(ExtensionBreak.BREAK_POINT_STEP_STATS);
     }
 
     protected void drop() {
@@ -518,6 +521,7 @@ public class BreakPanelToolbarFactory {
             return;
         }
         drop = true;
+        Stats.incCounter(ExtensionBreak.BREAK_POINT_DROP_STATS);
     }
 
     public boolean isToBeDropped() {
@@ -617,11 +621,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public ContinueButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/131.png")));
+            super(null, getScaledIcon("16/131.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.cont"));
@@ -639,6 +640,7 @@ public class BreakPanelToolbarFactory {
             setBreakAll(false);
             setBreakRequest(false);
             setBreakResponse(false);
+            Stats.incCounter("stats.ui.toolbar.button.break.continue");
         }
     }
 
@@ -647,11 +649,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public StepButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/143.png")));
+            super(null, getScaledIcon("16/143.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.step"));
@@ -673,6 +672,7 @@ public class BreakPanelToolbarFactory {
             } else {
                 step();
             }
+            Stats.incCounter("stats.ui.toolbar.button.break.step");
         }
     }
 
@@ -681,11 +681,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public DropButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/150.png")));
+            super(null, getScaledIcon("16/150.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.bin"));
@@ -696,6 +693,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             drop();
+            Stats.incCounter("stats.ui.toolbar.button.break.drop");
         }
     }
 
@@ -704,11 +702,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public AddBreakpointButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/break_add.png")));
+            super(null, getScaledIcon("16/break_add.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.brkpoint"));
@@ -717,6 +712,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             breakPanel.showNewBreakPointDialog();
+            Stats.incCounter("stats.ui.toolbar.button.break.add");
         }
     }
 
@@ -725,11 +721,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public BreakRequestsButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/105.png")));
+            super(null, getScaledIcon("16/105.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.request.set"));
@@ -738,6 +731,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakRequest();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.request");
         }
     }
 
@@ -746,11 +740,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public BreakResponsesButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/106.png")));
+            super(null, getScaledIcon("16/106.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.response.set"));
@@ -759,6 +750,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakResponse();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.response");
         }
     }
 
@@ -767,11 +759,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public BreakAllButtonAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/16/152.png")));
+            super(null, getScaledIcon("16/152.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.all.set"));
@@ -780,6 +769,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakAll();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.all");
         }
     }
 
@@ -788,11 +778,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public SetBreakOnJavaScriptAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/breakTypes/javascript.png")));
+            super(null, getScaledIcon("breakTypes/javascript.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.brkjavascript.unset"));
@@ -801,6 +788,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakOnJavascript();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.js");
         }
     }
 
@@ -809,11 +797,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public SetBreakOnCssAndFontsAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/breakTypes/cssAndFonts.png")));
+            super(null, getScaledIcon("breakTypes/cssAndFonts.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.brkcssfonts.unset"));
@@ -822,6 +807,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakOnCssAndFonts();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.cssandfonts");
         }
     }
 
@@ -830,11 +816,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public SetBreakOnMultimediaAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/breakTypes/multimedia.png")));
+            super(null, getScaledIcon("breakTypes/multimedia.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.brkmultimedia.unset"));
@@ -843,6 +826,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakOnMultimedia();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.multimedia");
         }
     }
 
@@ -851,11 +835,8 @@ public class BreakPanelToolbarFactory {
         private static final long serialVersionUID = 1L;
 
         public SetBreakOnlyOnScopeAction() {
-            super(
-                    null,
-                    new ImageIcon(
-                            BreakPanelToolbarFactory.class.getResource(
-                                    "/resource/icon/fugue/target-grey.png")));
+            super(null, getScaledIcon("fugue/target-grey.png"));
+
             putValue(
                     Action.SHORT_DESCRIPTION,
                     Constant.messages.getString("brk.toolbar.button.brkOnlyOnScope.set"));
@@ -864,6 +845,7 @@ public class BreakPanelToolbarFactory {
         @Override
         public void actionPerformed(ActionEvent e) {
             toggleBreakOnScopeOnly();
+            Stats.incCounter("stats.ui.toolbar.toggle.break.scope");
         }
     }
 

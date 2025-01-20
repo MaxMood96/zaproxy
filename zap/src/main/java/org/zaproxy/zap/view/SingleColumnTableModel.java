@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import javax.swing.table.AbstractTableModel;
 
+@SuppressWarnings("serial")
 public class SingleColumnTableModel extends AbstractTableModel {
 
     private static final long serialVersionUID = 1L;
@@ -67,14 +68,19 @@ public class SingleColumnTableModel extends AbstractTableModel {
         }
     }
 
-    /** @return Returns the tokens. */
+    /**
+     * @return Returns the tokens.
+     */
     public List<String> getLines() {
         List<String> newList = new ArrayList<>(lines);
         Iterator<String> it = newList.iterator();
         while (it.hasNext()) if (it.next().equals("")) it.remove();
         return newList;
     }
-    /** @param lines The tokens to set. */
+
+    /**
+     * @param lines The tokens to set.
+     */
     public void setLines(List<String> lines) {
         if (lines == null) {
             this.lines = new ArrayList<>();

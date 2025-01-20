@@ -32,7 +32,6 @@ import org.apache.commons.httpclient.URIException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
-import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.network.HttpRequestHeader;
 import org.parosproxy.paros.network.HttpSender;
@@ -82,7 +81,8 @@ public abstract class AuthenticationMethod {
         EACH_RESP,
         EACH_REQ,
         EACH_REQ_RESP,
-        POLL_URL
+        POLL_URL,
+        AUTO_DETECT
     }
 
     public static enum AuthPollFrequencyUnits {
@@ -220,11 +220,7 @@ public abstract class AuthenticationMethod {
 
     private HttpSender getHttpSender() {
         if (this.httpSender == null) {
-            this.httpSender =
-                    new HttpSender(
-                            Model.getSingleton().getOptionsParam().getConnectionParam(),
-                            true,
-                            HttpSender.AUTHENTICATION_POLL_INITIATOR);
+            this.httpSender = new HttpSender(HttpSender.AUTHENTICATION_POLL_INITIATOR);
         }
         return httpSender;
     }
@@ -264,7 +260,9 @@ public abstract class AuthenticationMethod {
      */
     public boolean isAuthenticated(HttpMessage msg, User user, boolean force) {
 
-        if (msg == null || user == null) {
+        if (msg == null
+                || user == null
+                || AuthCheckingStrategy.AUTO_DETECT.equals(this.authCheckingStrategy)) {
             return false;
         }
         AuthenticationState authState = user.getAuthenticationState();
@@ -336,7 +334,7 @@ public abstract class AuthenticationMethod {
                     HttpMessage pollMsg = pollAsUser(user);
                     msgToTest = pollMsg;
                 } catch (Exception e1) {
-                    LOGGER.warn("Failed sending poll request to " + this.getPollUrl(), e1);
+                    LOGGER.warn("Failed sending poll request to {}", this.getPollUrl(), e1);
                     return false;
                 }
                 break;
@@ -364,6 +362,9 @@ public abstract class AuthenticationMethod {
             case POLL_URL:
                 contentToTest.add(msg.getResponseHeader().toString());
                 contentToTest.add(msg.getResponseBody().toString());
+                break;
+            case AUTO_DETECT:
+                return false;
         }
         if (patternMatchesAny(loggedInIndicatorPattern, contentToTest)) {
             // Looks like we're authenticated
@@ -422,10 +423,9 @@ public abstract class AuthenticationMethod {
                             .addHeader(headerValue[0].trim(), headerValue[1].trim());
                 } else {
                     LOGGER.error(
-                            "Invalid header '"
-                                    + header
-                                    + "' for poll request to "
-                                    + this.getPollUrl());
+                            "Invalid header '{}' for poll request to {}",
+                            header,
+                            this.getPollUrl());
                 }
             }
         }

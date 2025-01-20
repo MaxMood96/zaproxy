@@ -71,7 +71,7 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
     public static final String CONTEXT_CONFIG_AUTH_HTTP_REALM = CONTEXT_CONFIG_AUTH_HTTP + ".realm";
     public static final String CONTEXT_CONFIG_AUTH_HTTP_PORT = CONTEXT_CONFIG_AUTH_HTTP + ".port";
 
-    private static final Logger log = LogManager.getLogger(HttpAuthenticationMethodType.class);
+    private static final Logger LOGGER = LogManager.getLogger(HttpAuthenticationMethodType.class);
 
     /** The unique identifier of the method. */
     private static final int METHOD_IDENTIFIER = 3;
@@ -170,11 +170,11 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
                                 userCredentials.getUsername(),
                                 userCredentials.getPassword(),
                                 InetAddress.getLocalHost().getCanonicalHostName(),
-                                this.realm);
+                                realm == null ? "" : realm);
                 session.getHttpState().setCredentials(stateAuthScope, stateCredentials);
             } catch (UnknownHostException e1) {
                 user.getAuthenticationState().setLastAuthFailure(e1.getMessage());
-                log.error(e1.getMessage(), e1);
+                LOGGER.error(e1.getMessage(), e1);
             }
             user.getAuthenticationState().setLastAuthFailure("");
             return session;
@@ -197,6 +197,7 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
     }
 
     /** The Options Panel used for configuring a {@link HttpAuthenticationMethod}. */
+    @SuppressWarnings("serial")
     private static class HttpAuthenticationMethodOptionsPanel
             extends AbstractAuthenticationMethodOptionsPanel {
 
@@ -311,7 +312,7 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
 
     @Override
     public boolean isTypeForMethod(AuthenticationMethod method) {
-        return (method instanceof HttpAuthenticationMethod);
+        return method != null && HttpAuthenticationMethod.class.equals(method.getClass());
     }
 
     @Override
@@ -341,7 +342,7 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
             try {
                 method.port = Integer.parseInt(ports.get(0));
             } catch (Exception ex) {
-                log.error("Unable to load HttpAuthenticationMethod. ", ex);
+                LOGGER.error("Unable to load HttpAuthenticationMethod. ", ex);
             }
         }
 
@@ -382,8 +383,8 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
     public ApiDynamicActionImplementor getSetMethodForContextApiAction() {
         return new ApiDynamicActionImplementor(
                 API_METHOD_NAME,
-                new String[] {PARAM_HOSTNAME, PARAM_REALM},
-                new String[] {PARAM_PORT}) {
+                new String[] {PARAM_HOSTNAME},
+                new String[] {PARAM_REALM, PARAM_PORT}) {
 
             @Override
             public void handleAction(JSONObject params) throws ApiException {
@@ -398,7 +399,7 @@ public class HttpAuthenticationMethodType extends AuthenticationMethodType {
                     throw new ApiException(ApiException.Type.ILLEGAL_PARAMETER, PARAM_HOSTNAME);
                 }
 
-                if (params.containsKey(PARAM_REALM)) method.realm = params.getString(PARAM_REALM);
+                method.realm = params.optString(PARAM_REALM);
 
                 if (params.containsKey(PARAM_PORT))
                     try {

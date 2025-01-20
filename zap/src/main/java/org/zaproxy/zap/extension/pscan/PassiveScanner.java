@@ -29,7 +29,11 @@ public interface PassiveScanner {
 
     default void scanHttpResponseReceive(HttpMessage msg, int id, Source source) {}
 
-    void setParent(PassiveScanThread parent);
+    default void setPassiveScanActions(PassiveScanActions actions) {}
+
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true, since = "2.12.0")
+    default void setParent(PassiveScanThread parent) {}
 
     String getName();
 
@@ -65,4 +69,14 @@ public interface PassiveScanner {
     default void setLevel(AlertThreshold level) {}
 
     boolean appliesToHistoryType(int historyType);
+
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true, since = "2.16.0")
+    default void setTaskHelper(PassiveScanTaskHelper helper) {}
+
+    @SuppressWarnings("removal")
+    @Deprecated(forRemoval = true, since = "2.16.0")
+    default PassiveScanTaskHelper getTaskHelper() {
+        return null;
+    }
 }

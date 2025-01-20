@@ -80,7 +80,7 @@
 				<reqUrlRegex/>
 				<reqHeadRegex/>
 				<resHeadRegex/>
-				<resBodyRegex>&lt;.*href\s*=\s*['"]?mailto:</resBodyRegex>
+				<resBodyRegex>href\s*=\s*['"]?mailto:</resBodyRegex>
 				<enabled>true</enabled>
 			</scanner>
 			<scanner>
@@ -122,6 +122,36 @@
 				<resHeadRegex>type\s*:\s*application\/json</resHeadRegex>
 				<resBodyRegex/>
 				<enabled>true</enabled>
+			</scanner>
+			<scanner>
+				<name>json_extended</name>
+				<type>TAG</type>
+				<config>JSON</config>
+				<reqUrlRegex/>
+				<reqHeadRegex/>
+				<resHeadRegex>content-type:\s{0,10}.{1,20}\/.{0,100}json</resHeadRegex>
+				<resBodyRegex/>
+				<enabled>false</enabled>
+			</scanner>
+			<scanner>
+				<name>response_yaml</name>
+				<type>TAG</type>
+				<config>YAML</config>
+				<reqUrlRegex/>
+				<reqHeadRegex/>
+				<resHeadRegex>content-type:\s{0,10}.{1,20}\/.{0,100}yaml</resHeadRegex>
+				<resBodyRegex/>
+				<enabled>false</enabled>
+			</scanner>
+			<scanner>
+				<name>response_xml</name>
+				<type>TAG</type>
+				<config>XML</config>
+				<reqUrlRegex/>
+				<reqHeadRegex/>
+				<resHeadRegex>content-type:\s{0,10}.{1,20}\/.{0,100}xml</resHeadRegex>
+				<resBodyRegex/>
+				<enabled>false</enabled>
 			</scanner>
 		</autoTagScanners>
 	</pscans>

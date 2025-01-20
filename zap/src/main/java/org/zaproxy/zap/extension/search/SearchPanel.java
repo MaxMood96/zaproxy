@@ -44,19 +44,15 @@ import org.parosproxy.paros.extension.AbstractPanel;
 import org.parosproxy.paros.extension.ViewDelegate;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.view.View;
-import org.zaproxy.zap.extension.httppanel.HttpPanelRequest;
-import org.zaproxy.zap.extension.httppanel.HttpPanelResponse;
 import org.zaproxy.zap.utils.DisplayUtils;
 import org.zaproxy.zap.utils.TableExportButton;
 import org.zaproxy.zap.utils.ZapTextField;
 import org.zaproxy.zap.view.ZapToggleButton;
 
+@SuppressWarnings("serial")
 public class SearchPanel extends AbstractPanel implements SearchListenner {
 
     private static final long serialVersionUID = 1L;
-
-    /** @deprecated (2.3.0) Replaced by {@link #HTTP_MESSAGE_CONTAINER_NAME}. */
-    @Deprecated public static final String PANEL_NAME = "search";
 
     /**
      * The name of the search results HTTP messages container.
@@ -89,13 +85,6 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
     private SearchResultsTableModel resultsModel;
 
     private final ViewDelegate view;
-
-    /** @deprecated (2.5.0) Use {@link #SearchPanel(ViewDelegate)} instead. */
-    @Deprecated
-    public SearchPanel() {
-        this(View.getSingleton());
-        initialize();
-    }
 
     public SearchPanel(ViewDelegate view) {
         super();
@@ -190,7 +179,7 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
         GridBagConstraints gridBagConstraints = new GridBagConstraints();
         gridBagConstraints.gridx = gridx;
         gridBagConstraints.gridy = 0;
-        gridBagConstraints.insets = new java.awt.Insets(0, 0, 0, 0);
+        gridBagConstraints.insets = new java.awt.Insets(2, 2, 2, 2);
         gridBagConstraints.anchor = java.awt.GridBagConstraints.WEST;
         return gridBagConstraints;
     }
@@ -359,6 +348,7 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
             regEx.setAlignmentX(0.0F);
             regEx.setPreferredSize(DisplayUtils.getScaledDimension(250, 25));
             regEx.setText("");
+            regEx.setPrompt(Constant.messages.getString("search.toolbar.prompt.regex"));
             regEx.setToolTipText(Constant.messages.getString("search.toolbar.tooltip.regex"));
             regEx.setMinimumSize(DisplayUtils.getScaledDimension(250, 25));
 
@@ -458,11 +448,6 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
         }
     }
 
-    /** @deprecated (2.5.0) No longer used/needed. */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public void setDisplayPanel(HttpPanelRequest requestPanel, HttpPanelResponse responsePanel) {}
-
     private void doSearch() {
         Pattern pattern;
         try {
@@ -545,7 +530,7 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
     }
 
     private void highlightMatch(SearchMatch sm) {
-        if (sm == null) {
+        if (sm == null || sm.getLocation() == null) {
             return;
         }
 
@@ -669,7 +654,22 @@ public class SearchPanel extends AbstractPanel implements SearchListenner {
                     new SearchOption(
                             Constant.messages.getString("search.toolbar.label.type.header"),
                             ExtensionSearch.Type.Header));
+            searchType.addItem(
+                    new SearchOption(
+                            Constant.messages.getString("search.toolbar.label.type.tag"),
+                            ExtensionSearch.Type.Tag));
+            searchType.addItem(
+                    new SearchOption(
+                            Constant.messages.getString("search.toolbar.label.type.note"),
+                            ExtensionSearch.Type.Note));
         }
+        searchType.addActionListener(
+                e -> {
+                    ExtensionSearch.Type selectedopt =
+                            ((SearchOption) searchType.getSelectedItem()).getType();
+                    // Inverse matching not enabled for Tags
+                    getChkInverse().setEnabled(!selectedopt.equals(ExtensionSearch.Type.Tag));
+                });
         return searchType;
     }
 

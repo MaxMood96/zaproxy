@@ -31,15 +31,12 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.Project;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
@@ -49,12 +46,12 @@ import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHRelease;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
+import org.zaproxy.zap.GitHubUser;
 
 /** A task that creates a GitHub release. */
-public class CreateGitHubRelease extends DefaultTask {
+public abstract class CreateGitHubRelease extends DefaultTask {
 
     private final Property<String> repo;
-    private final Property<String> authToken;
     private final Property<String> tag;
     private final Property<String> title;
     private final Property<String> body;
@@ -68,7 +65,6 @@ public class CreateGitHubRelease extends DefaultTask {
     public CreateGitHubRelease() {
         ObjectFactory objects = getProject().getObjects();
         this.repo = objects.property(String.class);
-        this.authToken = objects.property(String.class);
         this.tag = objects.property(String.class);
         this.title = objects.property(String.class);
         this.body = objects.property(String.class);
@@ -89,9 +85,7 @@ public class CreateGitHubRelease extends DefaultTask {
     }
 
     @Input
-    public Property<String> getAuthToken() {
-        return authToken;
-    }
+    public abstract Property<GitHubUser> getUser();
 
     @Input
     public Property<String> getTag() {
@@ -159,7 +153,9 @@ public class CreateGitHubRelease extends DefaultTask {
             throw new IllegalArgumentException("The checksum algorithm must not be empty.");
         }
 
-        GHRepository ghRepo = GitHub.connect("", authToken.get()).getRepository(repo.get());
+        GitHubUser ghUser = getUser().get();
+        GHRepository ghRepo =
+                GitHub.connect(ghUser.getName(), ghUser.getAuthToken()).getRepository(repo.get());
 
         validateTagExists(ghRepo, tag.get());
         validateReleaseDoesNotExist(ghRepo, tag.get());
@@ -239,39 +235,6 @@ public class CreateGitHubRelease extends DefaultTask {
                     .append(") | `")
                     .append(digestUtils.digestAsHex(file))
                     .append("` |\n");
-        }
-    }
-
-    public static final class Asset implements Named {
-
-        private final String label;
-        private final RegularFileProperty file;
-        private final Property<String> contentType;
-
-        public Asset(String label, Project project) {
-            this.label = label;
-
-            ObjectFactory objectFactory = project.getObjects();
-            this.file = objectFactory.fileProperty();
-            this.contentType =
-                    objectFactory.property(String.class).value("application/octet-stream");
-        }
-
-        @Internal
-        @Override
-        public String getName() {
-            return label;
-        }
-
-        @InputFile
-        @PathSensitive(PathSensitivity.NONE)
-        public RegularFileProperty getFile() {
-            return file;
-        }
-
-        @Input
-        public Property<String> getContentType() {
-            return contentType;
         }
     }
 }

@@ -1,7 +1,7 @@
-# Contributing to OWASP ZAP
-ZAP is a community project, and we are always delighted to welcome new contributors!
+# Contributing to ZAP
+ZAP by Checkmarx is a community project, and we are always delighted to welcome new contributors!
 
-There are lots of ways you can contribute:
+There are lots of ways you can contribute for full details see the [Contributing Guide](https://www.zaproxy.org/docs/contribute/).
 
 ## Got a Question or Problem?
 If you have a question or problem relating to using ZAP then the first thing to do is to check the [Frequently Asked Questions](https://www.zaproxy.org/faq/).
@@ -13,12 +13,12 @@ If they don't help then please ask on the [User Group](https://groups.google.com
 ## Found an Issue?
 If you have found a bug then raise an issue on the zaproxy repo: https://github.com/zaproxy/zaproxy/issues
 
-Its worth checking to see if its already been reported, and including as much information as you can to help us diagnose your problem.
+It's worth checking to see if it's already been reported, and including as much information as you can to help us diagnose your problem.
 
 This FAQ explains some useful steps you can follow: https://www.zaproxy.org/faq/somethings-not-working-what-should-i-do/
 
 ## Found a Vulnerability?
-If you think you have found a vulnerability in ZAP then please report it via our [bug bounty program](https://bugcrowd.com/owaspzap).
+If you think you have found a vulnerability in ZAP then please report it via [email](mailto:zaproxy-admin@googlegroups.com).
 
 We are always very grateful to researchers who report vulnerabilities responsibly and will be very happy to give credit for the valuable assistance they provide.
 
@@ -28,9 +28,9 @@ If you have a suggestion for new functionality then you can raise an issue on th
 Its worth checking to see if its already been requested, and including as much information as you can so that we can fully understand your requirements.
 
 ## Translate ZAP to Other Languages
-You can help translate the ZAP UI via the [Crowdin owasp-zap](https://crowdin.com/project/owasp-zap) project.
+You can help translate the ZAP UI via the [Crowdin zaproxy](https://crowdin.com/project/zaproxy) project.
 
-You can help translate the ZAP User Guide via the [Crowdin owasp-zap-help](https://crowdin.com/project/owasp-zap-help) project.
+You can help translate the ZAP User Guide via the [Crowdin zap-help](https://crowdin.com/project/zap-help) project.
 
 ## Become a ZAP Evangelist
 For information about the ZAP Evangelists and how to join up see the [ZAP Evangelists page](https://www.zaproxy.org/evangelists/)
@@ -71,6 +71,14 @@ Fixing [issues](https://github.com/zaproxy/zaproxy/issues) is very valuable (one
 
 #### Guidelines for Pull Request (PR) submission and processing:
 
+##### Contributor License Agreement
+
+You will need to sign the [Contributor Licensing Agreement](CLA.md). 
+If you have not yet done this then you will be prompted to sign it when you submit a PR. 
+The comment prompting you to sign it will explain how this can be done.
+If you would like to sign it for past PRs then just submit a dummy one to the [cla](https://github.com/zaproxy/cla) repo and follow the prompt. 
+The PR does not have to be merged so we can just close it.
+
 ##### Developer Certificate of Origin
 
 The Git commits must be [signed off] to indicate your agreement with [Developer Certificate of Origin].
@@ -90,7 +98,7 @@ does not support it.
 ##### What we (ZAP Team), expect from you?
   * "Atomic commits" (logical changes to be in a single commit). Please don't group disjointed changes into a single commit/PR.
   * Descriptive commits (subject and message):
-    * For example: https://github.com/spring-projects/spring-framework/blob/master/CONTRIBUTING.md#format-commit-messages
+    * For example: https://git-scm.com/book/en/v2/Distributed-Git-Contributing-to-a-Project#_commit_guidelines
   * Please, leave a comment after force pushing changes. It allows everyone to know that new changes are available.
   * Discussion about the changes:
     * Should be done in/on the PR or via the Dev Group and a link to that Dev Group thread added to the PR comments. (i.e.: Shared information is important, if something happens via IRC or private email please ensure a summary makes it to the PR.)

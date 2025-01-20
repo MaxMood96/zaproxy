@@ -40,7 +40,6 @@ import javax.swing.JToolBar;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
-import org.parosproxy.paros.common.AbstractParam;
 import org.parosproxy.paros.control.Control;
 import org.parosproxy.paros.control.Control.Mode;
 import org.parosproxy.paros.extension.AbstractPanel;
@@ -56,6 +55,7 @@ import org.zaproxy.zap.utils.SortedComboBoxModel;
  * This is a cleaner version of ScanPanel which doesn't mix functionality and the UI.
  * Implemented as a new set of classes for backwards compatibility with existing add-ons
  */
+@SuppressWarnings("serial")
 public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanController<GS>>
         extends AbstractPanel {
     private static final long serialVersionUID = 1L;
@@ -89,22 +89,7 @@ public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanCont
     private ScanStatus scanStatus = null;
     private Mode mode = Control.getSingleton().getMode();
 
-    private static Logger log = LogManager.getLogger(ScanPanel2.class);
-
-    /**
-     * Constructs a {@code ScanPanel2} with the given message resources prefix, tab icon and scan
-     * controller.
-     *
-     * @param prefix the prefix for the resource messages
-     * @param icon the icon for the tab of the panel
-     * @param controller the scan controller
-     * @param scanParam unused
-     * @deprecated (2.6.0) Use {@link #ScanPanel2(String, ImageIcon, ScanController)} instead.
-     */
-    @Deprecated
-    public ScanPanel2(String prefix, ImageIcon icon, SC controller, AbstractParam scanParam) {
-        this(prefix, icon, controller);
-    }
+    private static final Logger LOGGER = LogManager.getLogger(ScanPanel2.class);
 
     /**
      * Constructs a {@code ScanPanel2} with the given message resources prefix, tab icon and scan
@@ -122,7 +107,7 @@ public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanCont
         selectScanEntry =
                 new ScanEntry<>(Constant.messages.getString(prefix + ".toolbar.progress.select"));
         initialize(icon);
-        log.debug("Constructor " + prefix);
+        LOGGER.debug("Constructor {}", prefix);
     }
 
     /** This method initializes this */
@@ -546,13 +531,13 @@ public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanCont
                             }
                         });
             } catch (Exception e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
 
     private void scanFinshedEventHandler(int id, String host) {
-        log.debug("scanFinished " + prefix + " on " + host);
+        LOGGER.debug("scanFinished {} on {}", prefix, host);
         if (this.getSelectedScanner() != null && this.getSelectedScanner().getScanId() == id) {
             updateProgressAndButtonsState(getSelectedScanner());
         }
@@ -616,7 +601,7 @@ public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanCont
     }
 
     public void reset() {
-        log.debug("reset " + prefix);
+        LOGGER.debug("reset {}", prefix);
 
         progressModel.removeAllElements();
         progressSelect.addItem(selectScanEntry);
@@ -651,6 +636,7 @@ public abstract class ScanPanel2<GS extends GenericScanner2, SC extends ScanCont
     protected abstract Component getWorkPanel();
 
     protected abstract void switchView(GS scanner);
+
     /*
      * Returns the scan button. Can return null if not relevant
      */

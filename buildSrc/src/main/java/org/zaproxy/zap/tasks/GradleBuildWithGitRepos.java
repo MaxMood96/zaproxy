@@ -19,19 +19,18 @@
  */
 package org.zaproxy.zap.tasks;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import org.apache.tools.ant.taskdefs.condition.Os;
+import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.Repository;
@@ -49,10 +48,11 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Console;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.TaskAction;
-import org.zaproxy.zap.internal.RepoData;
+import org.zaproxy.zap.tasks.internal.RepoData;
 
 /** A task that clones Git repositories and runs Gradle tasks contained in them. */
 public class GradleBuildWithGitRepos extends DefaultTask {
@@ -81,7 +81,7 @@ public class GradleBuildWithGitRepos extends DefaultTask {
         return repositoriesDataFile;
     }
 
-    @Input
+    @InputDirectory
     public DirectoryProperty getRepositoriesDirectory() {
         return repositoriesDirectory;
     }
@@ -142,31 +142,17 @@ public class GradleBuildWithGitRepos extends DefaultTask {
 
                 getProject().mkdir(reposDir);
 
-                // XXX Rely just on JGit once it supports depth arg:
-                // https://bugs.eclipse.org/bugs/show_bug.cgi?id=475615
-                getProject()
-                        .exec(
-                                spec -> {
-                                    spec.setWorkingDir(reposDir);
-                                    spec.setExecutable("git");
-                                    spec.setEnvironment(Collections.emptyMap());
-                                    List<String> execArgs = new ArrayList<>();
-                                    execArgs.add("clone");
-                                    if (quiet.get()) {
-                                        execArgs.add("-q");
-                                    }
-                                    String branch = repoData.getBranch();
-                                    if (branch != null && !branch.isEmpty()) {
-                                        execArgs.add("--branch");
-                                        execArgs.add(branch);
-                                    }
-                                    execArgs.add("--depth");
-                                    execArgs.add("1");
-                                    execArgs.add(cloneUrl);
-                                    execArgs.add(repoName);
-                                    spec.args(execArgs);
-                                })
-                        .assertNormalExitValue();
+                CloneCommand clone =
+                        Git.cloneRepository()
+                                .setURI(cloneUrl)
+                                .setDepth(1)
+                                .setDirectory(repoDir.toFile());
+                String branch = repoData.getBranch();
+                if (branch != null && !branch.isEmpty()) {
+                    clone.setBranch(branch);
+                }
+                clone.call();
+
                 getLogger().lifecycle("Cloned {} into {}", cloneUrl, repoDir);
             } else if (updateRepositories.get()) {
                 FileRepositoryBuilder builder = new FileRepositoryBuilder();
@@ -214,7 +200,6 @@ public class GradleBuildWithGitRepos extends DefaultTask {
         getProject()
                 .exec(
                         spec -> {
-                            spec.environment("ZAP_RELEASE", "1");
                             spec.setWorkingDir(repoDir);
                             spec.setExecutable(gradleWrapper());
                             spec.args(execArgs);
@@ -223,11 +208,10 @@ public class GradleBuildWithGitRepos extends DefaultTask {
     }
 
     private List<RepoData> readRepoData() throws IOException {
-        Gson gson = new Gson();
-        Type reposType = new TypeToken<List<RepoData>>() {}.getType();
+        TypeReference<List<RepoData>> reposType = new TypeReference<>() {};
         File file = repositoriesDataFile.get().getAsFile();
         try (Reader reader = Files.newBufferedReader(file.toPath())) {
-            return gson.fromJson(reader, reposType);
+            return JsonMapper.builder().build().readValue(reader, reposType);
         }
     }
 

@@ -84,6 +84,12 @@
 // ZAP: 2020/11/23 Allow to initialise the singleton with an ExtensionLoader for tests.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
 // ZAP: 2021/05/14 Remove empty statement.
+// ZAP: 2021/09/13 Added setExitStatus.
+// ZAP: 2021/11/08 Validate if mandatory add-ons are present.
+// ZAP: 2022/02/09 No longer manage the proxy, deprecate related code.
+// ZAP: 2022/02/24 Remove code deprecated in 2.5.0
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
 package org.parosproxy.paros.control;
 
 import java.awt.Desktop;
@@ -104,8 +110,10 @@ import org.parosproxy.paros.model.Session;
 import org.parosproxy.paros.model.SessionListener;
 import org.parosproxy.paros.view.View;
 import org.parosproxy.paros.view.WaitMessageDialog;
+import org.zaproxy.zap.control.AddOnLoader;
 import org.zaproxy.zap.control.ControlOverrides;
 import org.zaproxy.zap.control.ExtensionFactory;
+import org.zaproxy.zap.utils.ZapHtmlLabel;
 
 /** Overall control with interaction on model and view. */
 public class Control extends AbstractControl implements SessionListener {
@@ -117,14 +125,14 @@ public class Control extends AbstractControl implements SessionListener {
         attack
     }
 
-    private static Logger log = LogManager.getLogger(Control.class);
+    private static final Logger LOGGER = LogManager.getLogger(Control.class);
 
     private static Control control = null;
-    private Proxy proxy = null;
     private MenuFileControl menuFileControl = null;
     private MenuToolsControl menuToolsControl = null;
     private SessionListener lastCallback = null;
     private Mode mode = null;
+    private int exitStatus = 0;
 
     private Control(Model model, View view) {
         super(model, view);
@@ -136,18 +144,16 @@ public class Control extends AbstractControl implements SessionListener {
         super(null, null);
     }
 
-    private boolean init(ControlOverrides overrides, boolean startProxy) {
+    private boolean init(ControlOverrides overrides) {
+        AddOnLoader addOnLoader =
+                ExtensionFactory.getAddOnLoader(
+                        model.getOptionsParam().getCheckForUpdatesParam().getAddonDirectories());
+        if (overrides != null) {
+            addOnLoader.getAddOnCollection().setMandatoryAddOns(overrides.getMandatoryAddOns());
+        }
 
         // Load extensions first as message bundles are loaded as a side effect
         loadExtension();
-
-        // ZAP: Start proxy even if no view
-        Proxy proxy = getProxy(overrides);
-        proxy.setIgnoreList(model.getOptionsParam().getGlobalExcludeURLParam().getTokensNames());
-        getExtensionLoader().hookProxyListener(proxy);
-        getExtensionLoader().hookOverrideMessageProxyListener(proxy);
-        getExtensionLoader().hookPersistentConnectionListener(proxy);
-        getExtensionLoader().hookConnectRequestProxyListeners(proxy);
 
         if (hasView()) {
             // ZAP: Add site map listeners
@@ -156,12 +162,6 @@ public class Control extends AbstractControl implements SessionListener {
 
         model.postInit();
 
-        if (startProxy) {
-            proxy.setShouldPrompt(true);
-            boolean started = proxy.startServer();
-            proxy.setShouldPrompt(false);
-            return started;
-        }
         return false;
     }
 
@@ -169,16 +169,20 @@ public class Control extends AbstractControl implements SessionListener {
         return view != null;
     }
 
+    /**
+     * @deprecated (2.12.0) No longer used/needed. It will be removed in a future release.
+     */
+    @Deprecated
     public Proxy getProxy() {
         return this.getProxy(null);
     }
 
+    /**
+     * @deprecated (2.12.0) No longer used/needed. It will be removed in a future release.
+     */
+    @Deprecated
     public Proxy getProxy(ControlOverrides overrides) {
-        if (proxy == null) {
-            proxy = new Proxy(model, overrides);
-        }
-
-        return proxy;
+        return new Proxy(model, overrides);
     }
 
     @Override
@@ -210,7 +214,6 @@ public class Control extends AbstractControl implements SessionListener {
                 view.getResponsePanel().saveConfig(model.getOptionsParam().getConfig());
             }
 
-            getProxy(null).stopServer();
             super.shutdown(compact);
         } finally {
             // Ensure all extensions' config changes done during shutdown are saved.
@@ -222,7 +225,7 @@ public class Control extends AbstractControl implements SessionListener {
         try {
             model.getOptionsParam().getConfig().save();
         } catch (ConfigurationException e) {
-            log.error("Error saving configurations:", e);
+            LOGGER.error("Error saving configurations:", e);
         }
     }
 
@@ -274,7 +277,8 @@ public class Control extends AbstractControl implements SessionListener {
                                 "menu.file.exit.message.activeActions", activeActions);
             }
 
-            if (message != null && view.showConfirmDialog(message) != JOptionPane.OK_OPTION) {
+            if (message != null
+                    && view.showConfirmDialog(new ZapHtmlLabel(message)) != JOptionPane.OK_OPTION) {
                 return;
             }
         }
@@ -295,25 +299,25 @@ public class Control extends AbstractControl implements SessionListener {
                                                     .getOptionsParam()
                                                     .getDatabaseParam()
                                                     .isCompactDatabase());
-                                    log.info(Constant.PROGRAM_TITLE + " terminated.");
+                                    LOGGER.info("{} terminated.", Constant.PROGRAM_TITLE);
 
                                     if (openOnExit != null && Desktop.isDesktopSupported()) {
                                         try {
-                                            log.info(
-                                                    "Openning file "
-                                                            + openOnExit.getAbsolutePath());
+                                            LOGGER.info(
+                                                    "Opening file {}",
+                                                    openOnExit.getAbsolutePath());
                                             Desktop.getDesktop().open(openOnExit);
                                         } catch (IOException e) {
-                                            log.error(
-                                                    "Failed to open file "
-                                                            + openOnExit.getAbsolutePath(),
+                                            LOGGER.error(
+                                                    "Failed to open file {}",
+                                                    openOnExit.getAbsolutePath(),
                                                     e);
                                         }
                                     }
                                 } catch (Throwable e) {
-                                    log.error("An error occurred while shutting down:", e);
+                                    LOGGER.error("An error occurred while shutting down:", e);
                                 } finally {
-                                    System.exit(0);
+                                    System.exit(exitStatus);
                                 }
                             }
                         },
@@ -328,6 +332,24 @@ public class Control extends AbstractControl implements SessionListener {
         } else {
             t.start();
         }
+    }
+
+    /**
+     * Sets the value ZAP will exit cleanly with. ZAP may still exit with a non-zero value if a
+     * serious error occurs. This will work however ZAP is run but it makes more sense if ZAP is run
+     * in cmdline mode.
+     *
+     * @param exitStatus the value ZAP will exit with
+     * @param logMessage the message that will be logged at info level
+     * @since 2.11.0
+     */
+    public void setExitStatus(int exitStatus, String logMessage) {
+        this.exitStatus = exitStatus;
+        LOGGER.info(logMessage);
+    }
+
+    public int getExitStatus() {
+        return exitStatus;
     }
 
     private static String wrapEntriesInLiTags(List<String> entries) {
@@ -348,8 +370,8 @@ public class Control extends AbstractControl implements SessionListener {
         shutdown(false);
         Model.getSingleton().getDb().deleteSession(sessionName);
 
-        log.info(Constant.PROGRAM_TITLE + " terminated.");
-        System.exit(0);
+        LOGGER.info("{} terminated.", Constant.PROGRAM_TITLE);
+        System.exit(this.getExitStatus());
     }
 
     public static Control getSingleton() {
@@ -359,17 +381,21 @@ public class Control extends AbstractControl implements SessionListener {
 
     public static boolean initSingletonWithView(ControlOverrides overrides) {
         control = new Control(Model.getSingleton(), View.getSingleton());
-        return control.init(overrides, true);
+        return control.init(overrides);
     }
 
     public static boolean initSingletonWithoutView(ControlOverrides overrides) {
         control = new Control(Model.getSingleton(), null);
-        return control.init(overrides, true);
+        return control.init(overrides);
     }
 
+    /**
+     * @deprecated (2.12.0) Use {@link #initSingletonWithoutView(ControlOverrides)} instead. It will
+     *     be removed in a future release.
+     */
+    @Deprecated
     public static void initSingletonWithoutViewAndProxy(ControlOverrides overrides) {
-        control = new Control(Model.getSingleton(), null);
-        control.init(overrides, false);
+        initSingletonWithoutView(overrides);
     }
 
     // ZAP: Added method to allow for testing
@@ -396,12 +422,12 @@ public class Control extends AbstractControl implements SessionListener {
     }
 
     public void runCommandLine() throws Exception {
-        log.debug("runCommand");
+        LOGGER.debug("runCommand");
         getExtensionLoader().runCommandLine();
     }
 
     public void runCommandLineNewSession(String fileName) throws Exception {
-        log.debug("runCommandLineNewSession " + fileName);
+        LOGGER.debug("runCommandLineNewSession {}", fileName);
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
 
         model.createAndOpenUntitledDb();
@@ -422,41 +448,40 @@ public class Control extends AbstractControl implements SessionListener {
                     });
         }
 
-        log.info("New session file created: " + Paths.get(fileName).toRealPath());
+        LOGGER.info("New session file created: {}", Paths.get(fileName).toRealPath());
         control.getExtensionLoader().databaseOpen(model.getDb());
         control.getExtensionLoader().sessionChangedAllPlugin(session);
     }
 
     /**
-     * Creates a new session and resets session related data in other components (e.g. proxy
-     * excluded URLs).
+     * Creates a new session.
      *
      * @return the newly created session.
      */
     private Session createNewSession() {
-        Session session = model.newSession();
-        getProxy()
-                .setIgnoreList(model.getOptionsParam().getGlobalExcludeURLParam().getTokensNames());
-        return session;
+        return model.newSession();
     }
 
     public void runCommandLineOpenSession(String fileName) throws Exception {
-        log.debug("runCommandLineOpenSession " + fileName);
+        LOGGER.debug("runCommandLineOpenSession {}", fileName);
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
 
         Session session = Model.getSingleton().getSession();
         Model.getSingleton().openSession(fileName);
-        log.info("Session file opened");
+        LOGGER.info("Session file opened");
         control.getExtensionLoader().databaseOpen(model.getDb());
         control.getExtensionLoader().sessionChangedAllPlugin(session);
     }
 
-    public void setExcludeFromProxyUrls(List<String> urls) {
-        this.getProxy(null).setIgnoreList(urls);
-    }
+    /**
+     * @deprecated (2.12.0) The proxy is no longer managed by Control. It will be removed in a
+     *     future release.
+     */
+    @Deprecated
+    public void setExcludeFromProxyUrls(List<String> urls) {}
 
     public void openSession(final File file, final SessionListener callback) {
-        log.info("Open Session");
+        LOGGER.info("Open Session");
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
         lastCallback = callback;
         model.openSession(file, this);
@@ -464,7 +489,7 @@ public class Control extends AbstractControl implements SessionListener {
     }
 
     public void openSession(final String fileName, final SessionListener callback) {
-        log.info("Open Session");
+        LOGGER.info("Open Session");
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
         lastCallback = callback;
         model.openSession(fileName, this);
@@ -472,7 +497,7 @@ public class Control extends AbstractControl implements SessionListener {
     }
 
     public Session newSession() throws Exception {
-        log.info("New Session");
+        LOGGER.info("New Session");
         closeSessionAndCreateAndOpenUntitledDb();
         final Session session = createNewSession();
         getExtensionLoader().databaseOpen(model.getDb());
@@ -497,7 +522,7 @@ public class Control extends AbstractControl implements SessionListener {
                     .getTableSession()
                     .insert(session.getSessionId(), session.getSessionName());
         } catch (DatabaseException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         return session;
@@ -511,12 +536,12 @@ public class Control extends AbstractControl implements SessionListener {
     private void closeSessionAndCreateAndOpenUntitledDb() throws Exception {
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
         model.closeSession();
-        log.info("Create and Open Untitled Db");
+        LOGGER.info("Create and Open Untitled Db");
         model.createAndOpenUntitledDb();
     }
 
     public void newSession(String fileName, final SessionListener callback) {
-        log.info("New Session");
+        LOGGER.info("New Session");
         try {
             closeSessionAndCreateAndOpenUntitledDb();
             lastCallback = callback;
@@ -535,7 +560,7 @@ public class Control extends AbstractControl implements SessionListener {
     }
 
     public void saveSession(final String fileName, final SessionListener callback) {
-        log.info("Save Session");
+        LOGGER.info("Save Session");
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
         lastCallback = callback;
         model.saveSession(fileName, this);
@@ -556,33 +581,17 @@ public class Control extends AbstractControl implements SessionListener {
     }
 
     public void snapshotSession(final String fileName, final SessionListener callback) {
-        log.info("Snapshot Session");
+        LOGGER.info("Snapshot Session");
         lastCallback = callback;
         model.snapshotSession(fileName, this);
         // The session is saved in a thread, so notify the listeners via the callback
     }
 
     public void discardSession() {
-        log.info("Discard Session");
+        LOGGER.info("Discard Session");
         getExtensionLoader().sessionAboutToChangeAllPlugin(null);
         model.discardSession();
         getExtensionLoader().sessionChangedAllPlugin(null);
-    }
-
-    /**
-     * @deprecated (2.5.0) Use just {@link #newSession()} (or {@link #newSession(String,
-     *     SessionListener)}) instead, which already takes care to create and open an untitled
-     *     database.
-     */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public void createAndOpenUntitledDb() throws ClassNotFoundException, Exception {
-        log.info("Create and Open Untitled Db");
-        getExtensionLoader().sessionAboutToChangeAllPlugin(null);
-        model.closeSession();
-        model.createAndOpenUntitledDb();
-        getExtensionLoader().databaseOpen(model.getDb());
-        getExtensionLoader().sessionChangedAllPlugin(model.getSession());
     }
 
     @Override

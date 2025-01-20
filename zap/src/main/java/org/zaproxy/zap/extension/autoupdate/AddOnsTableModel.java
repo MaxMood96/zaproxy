@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Set;
 import javax.swing.event.TableModelEvent;
 import javax.swing.table.AbstractTableModel;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -39,6 +39,7 @@ import org.zaproxy.zap.control.AddOnCollection;
 import org.zaproxy.zap.control.AddOnRunIssuesUtils;
 
 /** An {@code AbstractTableModel} for add-ons. */
+@SuppressWarnings("serial")
 public abstract class AddOnsTableModel extends AbstractTableModel {
 
     /** The column in the table model that allows to get the {@code AddOnWrapper} of a given row. */
@@ -57,24 +58,6 @@ public abstract class AddOnsTableModel extends AbstractTableModel {
     private AddOnCollection addOnCollection;
 
     private AddOnSearcher addOnSeacher;
-
-    /**
-     * @deprecated (2.5.0) Replaced by {@link #AddOnsTableModel(AddOnCollection, int)}. It will be
-     *     removed in a future release.
-     */
-    @Deprecated
-    public AddOnsTableModel(
-            Comparator<AddOnWrapper> comparator,
-            AddOnCollection addOnCollection,
-            int progressColumn) {
-        super();
-
-        this.comparator = comparator;
-        this.wrappers = new ArrayList<>();
-        this.progressColumn = progressColumn;
-
-        this.addOnCollection = addOnCollection;
-    }
 
     public AddOnsTableModel(AddOnCollection addOnCollection, int progressColumn) {
         super();
@@ -242,9 +225,7 @@ public abstract class AddOnsTableModel extends AbstractTableModel {
                         rows.add(idx);
                     }
                 } catch (Exception e) {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Error on " + url, e);
-                    }
+                    logger.debug("Error on {}", url, e);
                     setFailed(aow, addOn);
                     try {
                         final int row = idx;
@@ -275,9 +256,7 @@ public abstract class AddOnsTableModel extends AbstractTableModel {
                             }
                         });
             } catch (InvocationTargetException | InterruptedException e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Failed to update all the progresses: ", e);
-                }
+                logger.debug("Failed to update all the progresses: ", e);
             }
         }
     }
@@ -331,10 +310,10 @@ public abstract class AddOnsTableModel extends AbstractTableModel {
         StringBuilder strBuilder = new StringBuilder(150);
         strBuilder
                 .append("<html><strong>")
-                .append(StringEscapeUtils.escapeHtml(title))
+                .append(StringEscapeUtils.escapeHtml4(title))
                 .append("</strong><ul>");
         for (String issue : issues) {
-            strBuilder.append("<li>").append(StringEscapeUtils.escapeHtml(issue)).append("</li>");
+            strBuilder.append("<li>").append(StringEscapeUtils.escapeHtml4(issue)).append("</li>");
         }
         strBuilder.append("</ul></html>");
         return strBuilder.toString();

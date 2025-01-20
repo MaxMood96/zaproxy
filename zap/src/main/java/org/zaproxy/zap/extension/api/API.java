@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -41,10 +42,11 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import net.sf.json.JSONObject;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.lang.time.DateUtils;
+import org.apache.commons.lang3.time.DateUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.parosproxy.paros.core.proxy.ProxyParam;
+import org.parosproxy.paros.core.scanner.NameValuePair;
+import org.parosproxy.paros.core.scanner.VariantMultipartFormParameters;
 import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpInputStream;
@@ -56,6 +58,7 @@ import org.parosproxy.paros.view.View;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.zaproxy.zap.utils.JsonUtil;
+import org.zaproxy.zap.utils.Stats;
 
 public class API {
     public enum Format {
@@ -95,6 +98,8 @@ public class API {
      */
     public static final String API_URL_S = "https://" + API_DOMAIN + "/";
 
+    public static final String TRANSFER_DIR_TOKEN = "${XFER}";
+
     public static final String API_KEY_PARAM = "apikey";
     public static final String API_NONCE_PARAM = "apinonce";
 
@@ -104,6 +109,8 @@ public class API {
     private static final String STATUS_OK = "200 OK";
     private static final String STATUS_BAD_REQUEST = "400 Bad Request";
     private static final String STATUS_INTERNAL_SERVER_ERROR = "500 Internal Server Error";
+
+    private static final String STATS_PREFIX = "stats.api.";
 
     private Map<String, ApiImplementor> implementors = new HashMap<>();
     private static API api = null;
@@ -126,10 +133,11 @@ public class API {
      *
      * @see #getProxyParam()
      */
-    private ProxyParam proxyParam;
+    @SuppressWarnings("deprecation")
+    private org.parosproxy.paros.core.proxy.ProxyParam proxyParam;
 
     private Random random = new SecureRandom();
-    private static final Logger logger = LogManager.getLogger(API.class);
+    private static final Logger LOGGER = LogManager.getLogger(API.class);
 
     private static synchronized API newInstance() {
         if (api == null) {
@@ -163,16 +171,16 @@ public class API {
      */
     public void registerApiImplementor(ApiImplementor impl) {
         if (implementors.get(impl.getPrefix()) != null) {
-            logger.error(
-                    "Second attempt to register API implementor with prefix of "
-                            + impl.getPrefix());
+            LOGGER.error(
+                    "Second attempt to register API implementor with prefix of {}",
+                    impl.getPrefix());
             return;
         }
         implementors.put(impl.getPrefix(), impl);
         for (String shortcut : impl.getApiShortcuts()) {
-            logger.debug("Registering API shortcut: " + shortcut);
+            LOGGER.debug("Registering API shortcut: {}", shortcut);
             if (this.shortcuts.containsKey(shortcut)) {
-                logger.error("Duplicate API shortcut: " + shortcut);
+                LOGGER.error("Duplicate API shortcut: {}", shortcut);
             }
             this.shortcuts.put("/" + shortcut, impl);
         }
@@ -190,16 +198,16 @@ public class API {
      */
     public void removeApiImplementor(ApiImplementor impl) {
         if (!implementors.containsKey(impl.getPrefix())) {
-            logger.warn(
-                    "Attempting to remove an API implementor not registered, with prefix: "
-                            + impl.getPrefix());
+            LOGGER.warn(
+                    "Attempting to remove an API implementor not registered, with prefix: {}",
+                    impl.getPrefix());
             return;
         }
         implementors.remove(impl.getPrefix());
         for (String shortcut : impl.getApiShortcuts()) {
             String key = "/" + shortcut;
             if (this.shortcuts.containsKey(key)) {
-                logger.debug("Removing registered API shortcut: " + shortcut);
+                LOGGER.debug("Removing registered API shortcut: {}", shortcut);
                 this.shortcuts.remove(key);
             }
         }
@@ -225,14 +233,16 @@ public class API {
         this.optionsParamApi = optionsParamApi;
     }
 
-    private ProxyParam getProxyParam() {
+    @SuppressWarnings("deprecation")
+    private org.parosproxy.paros.core.proxy.ProxyParam getProxyParam() {
         if (proxyParam == null) {
             proxyParam = Model.getSingleton().getOptionsParam().getProxyParam();
         }
         return proxyParam;
     }
 
-    void setProxyParam(ProxyParam proxyParam) {
+    @SuppressWarnings("deprecation")
+    void setProxyParam(org.parosproxy.paros.core.proxy.ProxyParam proxyParam) {
         this.proxyParam = proxyParam;
     }
 
@@ -258,20 +268,16 @@ public class API {
             if (getOptionsParamApi().isPermittedAddress(requestHeader.getHostName())) {
                 return true;
             }
-            logger.warn(
-                    "Request to API URL "
-                            + requestHeader.getURI().toString()
-                            + " with host header "
-                            + requestHeader.getHostName()
-                            + " not permitted");
+            LOGGER.warn(
+                    "Request to API URL {} with host header {} not permitted",
+                    requestHeader.getURI(),
+                    requestHeader.getHostName());
             return false;
         }
-        logger.warn(
-                "Request to API URL "
-                        + requestHeader.getURI().toString()
-                        + " from "
-                        + requestHeader.getSenderAddress().getHostAddress()
-                        + " not permitted");
+        LOGGER.warn(
+                "Request to API URL {} from {} not permitted",
+                requestHeader.getURI(),
+                requestHeader.getSenderAddress().getHostAddress());
         return false;
     }
 
@@ -281,7 +287,7 @@ public class API {
      * @param requestHeader the request header
      * @param httpIn the HTTP input stream
      * @param httpOut the HTTP output stream
-     * @param force if set then always handle an an API request (will not return null)
+     * @param force if set then always handle an API request (will not return null)
      * @return null if its not an API request, an empty message if it was silently dropped or the
      *     API response sent.
      * @throws IOException
@@ -300,7 +306,7 @@ public class API {
 
         // Check for callbacks
         if (url.contains(CALL_BACK_URL)) {
-            logger.debug("handleApiRequest Callback: " + url);
+            LOGGER.debug("handleApiRequest Callback: {}", url);
             for (Entry<String, ApiImplementor> callback : callBacks.entrySet()) {
                 if (url.startsWith(callback.getKey())) {
                     callbackImpl = callback.getValue();
@@ -308,12 +314,21 @@ public class API {
                 }
             }
             if (callbackImpl == null) {
-                logger.warn(
-                        "Request to callback URL "
-                                + requestHeader.getURI().toString()
-                                + " from "
-                                + requestHeader.getSenderAddress().getHostAddress()
-                                + " not found - this could be a callback url from a previous session or possibly an attempt to attack ZAP");
+                for (Entry<String, String> entry :
+                        this.getOptionsParamApi().getPersistentCallBacks().entrySet()) {
+                    if (url.startsWith(entry.getKey())) {
+                        callbackImpl = this.getImplementors().get(entry.getValue());
+                        if (callbackImpl != null) {
+                            break;
+                        }
+                    }
+                }
+            }
+            if (callbackImpl == null) {
+                LOGGER.warn(
+                        "Request to callback URL {} from {} not found - this could be a callback url from a previous session or possibly an attempt to attack ZAP",
+                        requestHeader.getURI(),
+                        requestHeader.getSenderAddress().getHostAddress());
                 return new HttpMessage();
             }
         }
@@ -339,11 +354,11 @@ public class API {
         }
         if (getOptionsParamApi().isSecureOnly() && !requestHeader.isSecure()) {
             // Insecure request with secure only set, always ignore
-            logger.debug("handleApiRequest rejecting insecure request");
+            LOGGER.debug("handleApiRequest rejecting insecure request");
             return new HttpMessage();
         }
 
-        logger.debug("handleApiRequest " + url);
+        LOGGER.debug("handleApiRequest {}", url);
 
         HttpMessage msg = new HttpMessage();
         msg.setRequestHeader(requestHeader);
@@ -393,6 +408,7 @@ public class API {
 
                     msg.setResponseHeader(getDefaultResponseHeader(contentType));
                     msg.getResponseHeader().setContentLength(icon.length);
+                    msg.getResponseBody().setBody(icon);
                     httpOut.write(msg.getResponseHeader());
                     httpOut.write(icon);
                     httpOut.flush();
@@ -465,6 +481,19 @@ public class API {
                                 && contentTypeHeader.equals(
                                         HttpHeader.FORM_URLENCODED_CONTENT_TYPE)) {
                             params = getParams(msg.getRequestBody().toString());
+                        } else if (contentTypeHeader != null
+                                && contentTypeHeader.startsWith(
+                                        HttpHeader.FORM_MULTIPART_CONTENT_TYPE)) {
+                            VariantMultipartFormParameters tmpVarent =
+                                    new VariantMultipartFormParameters();
+                            tmpVarent.setMessage(msg);
+                            params = new JSONObject();
+
+                            for (NameValuePair param : tmpVarent.getParamList()) {
+                                params.put(
+                                        param.getName(),
+                                        JsonUtil.getJsonFriendlyString(param.getValue()));
+                            }
                         } else {
                             throw new ApiException(ApiException.Type.CONTENT_TYPE_NOT_SUPPORTED);
                         }
@@ -490,6 +519,8 @@ public class API {
                         throw new ApiException(
                                 ApiException.Type.NO_IMPLEMENTOR, "Implementor was not provided.");
                     }
+                    incStatistic("call", format, component, reqType, name);
+
                     switch (reqType) {
                         case action:
                             if (!getOptionsParamApi().isDisableKey()) {
@@ -571,6 +602,9 @@ public class API {
 
         } catch (Exception e) {
             if (!getOptionsParamApi().isReportPermErrors()) {
+                if (component != null && format != null && reqType != null && name != null) {
+                    incStatistic("error", format, component, reqType, name);
+                }
                 if (e instanceof ApiException) {
                     ApiException exception = (ApiException) e;
                     if (exception.getType().equals(ApiException.Type.DISABLED)
@@ -606,6 +640,21 @@ public class API {
         }
 
         return msg;
+    }
+
+    private void incStatistic(
+            String type, Format format, String component, RequestType reqType, String name) {
+        Stats.incCounter(
+                STATS_PREFIX
+                        + type
+                        + "."
+                        + format.name().toLowerCase(Locale.ROOT)
+                        + "."
+                        + component
+                        + "."
+                        + reqType.name()
+                        + "."
+                        + name);
     }
 
     /**
@@ -660,7 +709,7 @@ public class API {
                 return responseToHtml(res);
             default:
                 // Should not happen, format validation should prevent this case...
-                logger.error("Unhandled format: " + format);
+                LOGGER.error("Unhandled format: {}", format);
                 throw new ApiException(ApiException.Type.INTERNAL_ERROR);
         }
     }
@@ -731,6 +780,7 @@ public class API {
      * @return the base URL to access the ZAP API.
      * @since 2.7.0
      */
+    @SuppressWarnings("deprecation")
     public String getBaseURL(boolean proxy) {
         if (proxy) {
             return getOptionsParamApi().isSecureOnly() ? API_URL_S : API_URL;
@@ -801,13 +851,39 @@ public class API {
             return sw.toString();
 
         } catch (Exception e) {
-            logger.error("Failed to convert API response to XML: " + e.getMessage(), e);
+            LOGGER.error("Failed to convert API response to XML: {}", e.getMessage(), e);
             throw new ApiException(ApiException.Type.INTERNAL_ERROR, e);
         }
     }
 
     private static JSONObject getParams(HttpRequestHeader requestHeader) throws ApiException {
         return getParams(requestHeader.getURI().getEscapedQuery());
+    }
+
+    /**
+     * Detects and replaces the TRANSFER_DIR_TOKEN at the start of relevant params
+     *
+     * @param key the parameter key
+     * @param value the parameter value
+     * @return the value with the TRANSFER_DIR_TOKEN replaced if relevant
+     */
+    private static String replaceXferTokens(String key, String value) {
+        String keyLc = key.toLowerCase(Locale.ROOT);
+        if ((keyLc.contains("file") || keyLc.contains("path") || keyLc.contains("dir"))
+                && value.startsWith(TRANSFER_DIR_TOKEN)) {
+            String relPath = value.substring(TRANSFER_DIR_TOKEN.length());
+            if (!relPath.startsWith("/") && !relPath.startsWith("\\")) {
+                // Cope with the user not specifying a slash
+                relPath = "/" + relPath;
+            }
+            return Model.getSingleton().getOptionsParam().getApiParam().getTransferDir().toString()
+                    + relPath;
+        }
+        return value;
+    }
+
+    private static String decodeParam(String param) throws UnsupportedEncodingException {
+        return URLDecoder.decode(param, "UTF-8");
     }
 
     public static JSONObject getParams(String params) throws ApiException {
@@ -825,19 +901,19 @@ public class API {
             if (pos > 0) {
                 // param found
                 try {
-                    key = URLDecoder.decode(keyValue[i].substring(0, pos), "UTF-8");
-                    value = URLDecoder.decode(keyValue[i].substring(pos + 1), "UTF-8");
+                    key = decodeParam(keyValue[i].substring(0, pos));
+                    value = replaceXferTokens(key, decodeParam(keyValue[i].substring(pos + 1)));
                     jp.put(key, JsonUtil.getJsonFriendlyString(value));
                 } catch (UnsupportedEncodingException | IllegalArgumentException e) {
                     // Carry on anyway
                     Exception apiException =
                             new ApiException(ApiException.Type.ILLEGAL_PARAMETER, params, e);
-                    logger.error(apiException.getMessage(), apiException);
+                    LOGGER.error(apiException.getMessage(), apiException);
                 }
             } else {
                 // Carry on anyway
                 Exception e = new ApiException(ApiException.Type.ILLEGAL_PARAMETER, params);
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
         return jp;
@@ -865,7 +941,7 @@ public class API {
     public String getCallBackUrl(ApiImplementor impl, String site) {
         String url = site + CALL_BACK_URL + random.nextLong();
         this.callBacks.put(url, impl);
-        logger.debug("Callback " + url + " registered for " + impl.getClass().getCanonicalName());
+        LOGGER.debug("Callback {} registered for {}", url, impl.getClass().getCanonicalName());
         return url;
     }
 
@@ -879,7 +955,7 @@ public class API {
      * @see #removeApiImplementor(ApiImplementor)
      */
     public void removeCallBackUrl(String url) {
-        logger.debug("Callback " + url + " removed");
+        LOGGER.debug("Callback {} removed", url);
         this.callBacks.remove(url);
     }
 
@@ -897,8 +973,40 @@ public class API {
         if (impl == null) {
             throw new IllegalArgumentException("Parameter impl must not be null.");
         }
-        logger.debug("All callbacks removed for " + impl.getClass().getCanonicalName());
+        LOGGER.debug("All callbacks removed for {}", impl.getClass().getCanonicalName());
         this.callBacks.values().removeIf(impl::equals);
+    }
+
+    /**
+     * Get a callback which persists over ZAP restarts - will create one if it doesn't exist
+     *
+     * @param impl the ApiImplementor requesting the callback URL
+     * @param site the site the callback will be on
+     * @return a callback URL
+     * @since 2.12.0
+     */
+    public String getPersistentCallBackUrl(ApiImplementor impl, String site) {
+        for (Entry<String, String> entry :
+                this.getOptionsParamApi().getPersistentCallBacks().entrySet()) {
+            String url = entry.getKey();
+            if (url.startsWith(site) && entry.getValue().equals(impl.getPrefix())) {
+                return url;
+            }
+        }
+        String url = site + CALL_BACK_URL + random.nextLong();
+        this.getOptionsParamApi().addPersistantCallBack(url, impl.getPrefix());
+        return url;
+    }
+
+    /**
+     * Remove a callback which would otherwise persist over ZAP restarts
+     *
+     * @param url the persistent callback URL
+     * @return true if the callback was deleted - false means the callback URL was not found
+     * @since 2.12.0
+     */
+    public boolean removePersistentCallBackUrl(String url) {
+        return this.getOptionsParamApi().removePersistantCallBack(url) != null;
     }
 
     /**
@@ -940,7 +1048,7 @@ public class API {
             HttpRequestHeader requestHeader = msg.getRequestHeader();
             return this.hasValidKey(requestHeader, getParams(requestHeader));
         } catch (ApiException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             return false;
         }
     }
@@ -959,7 +1067,7 @@ public class API {
             try {
                 apiPath = reqHeader.getURI().getPath();
             } catch (URIException e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
                 return false;
             }
             String nonceParam = reqHeader.getHeader(HttpHeader.X_ZAP_API_NONCE);
@@ -970,34 +1078,29 @@ public class API {
             if (nonceParam != null) {
                 Nonce nonce = nonces.get(nonceParam);
                 if (nonce == null) {
-                    logger.warn(
-                            "API nonce "
-                                    + nonceParam
-                                    + " not found in request from "
-                                    + reqHeader.getSenderAddress().getHostAddress());
+                    LOGGER.warn(
+                            "API nonce {} not found in request from {}",
+                            nonceParam,
+                            reqHeader.getSenderAddress().getHostAddress());
                     return false;
                 } else if (nonce.isOneTime()) {
                     nonces.remove(nonceParam);
                 }
                 if (!nonce.isValid()) {
-                    logger.warn(
-                            "API nonce "
-                                    + nonce.getNonceKey()
-                                    + " expired at "
-                                    + nonce.getExpires().toString()
-                                    + " in request from "
-                                    + reqHeader.getSenderAddress().getHostAddress());
+                    LOGGER.warn(
+                            "API nonce {} expired at {} in request from {}",
+                            nonce.getNonceKey(),
+                            nonce.getExpires(),
+                            reqHeader.getSenderAddress().getHostAddress());
                     return false;
                 }
 
                 if (!apiPath.equals(nonce.getApiPath())) {
-                    logger.warn(
-                            "API nonce path was "
-                                    + nonce.getApiPath()
-                                    + " but call was for "
-                                    + apiPath
-                                    + " in request from "
-                                    + reqHeader.getSenderAddress().getHostAddress());
+                    LOGGER.warn(
+                            "API nonce path was {} but call was for {} in request from {}",
+                            nonce.getApiPath(),
+                            apiPath,
+                            reqHeader.getSenderAddress().getHostAddress());
                     return false;
                 }
             } else {
@@ -1006,11 +1109,10 @@ public class API {
                     keyParam = params.getString(API_KEY_PARAM);
                 }
                 if (!getOptionsParamApi().getKey().equals(keyParam)) {
-                    logger.warn(
-                            "API key incorrect or not supplied: "
-                                    + keyParam
-                                    + " in request from "
-                                    + reqHeader.getSenderAddress().getHostAddress());
+                    LOGGER.warn(
+                            "API key incorrect or not supplied: {} in request from {}",
+                            keyParam,
+                            reqHeader.getSenderAddress().getHostAddress());
                     return false;
                 }
             }
@@ -1064,7 +1166,9 @@ public class API {
         sb.append("X-Content-Type-Options: nosniff\r\n");
         sb.append("X-Clacks-Overhead: GNU Terry Pratchett\r\n");
         sb.append("Content-Length: ").append(contentLength).append("\r\n");
-        sb.append("Content-Type: ").append(contentType).append("\r\n");
+        if (contentType != null) {
+            sb.append("Content-Type: ").append(contentType).append("\r\n");
+        }
 
         return sb.toString();
     }
@@ -1097,7 +1201,7 @@ public class API {
             }
 
             if (logError) {
-                logger.error("API 'other' endpoint didn't handle exception:", cause);
+                LOGGER.error("API 'other' endpoint didn't handle exception:", cause);
             }
         } else {
             ApiException exception;
@@ -1109,7 +1213,7 @@ public class API {
                 }
             } else {
                 exception = new ApiException(ApiException.Type.INTERNAL_ERROR, cause);
-                logger.error("Exception while handling API request:", cause);
+                LOGGER.error("Exception while handling API request:", cause);
             }
             String response =
                     exception.toString(
@@ -1125,17 +1229,15 @@ public class API {
                     getDefaultResponseHeader(
                             responseStatus, contentType, msg.getResponseBody().length()));
         } catch (HttpMalformedHeaderException e) {
-            logger.warn("Failed to build API error response:", e);
+            LOGGER.warn("Failed to build API error response:", e);
         }
     }
 
     private static void logBadRequest(HttpMessage msg, Exception cause) {
-        logger.warn(
-                "Bad request to API endpoint ["
-                        + msg.getRequestHeader().getURI().getEscapedPath()
-                        + "] from ["
-                        + msg.getRequestHeader().getSenderAddress().getHostAddress()
-                        + "]:",
+        LOGGER.warn(
+                "Bad request to API endpoint [{}] from [{}]:",
+                msg.getRequestHeader().getURI().getEscapedPath(),
+                msg.getRequestHeader().getSenderAddress().getHostAddress(),
                 cause);
     }
 

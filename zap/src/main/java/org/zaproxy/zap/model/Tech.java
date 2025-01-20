@@ -32,6 +32,7 @@ public class Tech implements Comparable<Tech> {
     // even though I've gone with a class instead on an enum;)
     public static final Tech Db = new Tech("Db", "technologies.db");
     public static final Tech MySQL = new Tech(Db, "MySQL");
+    public static final Tech MariaDB = new Tech(Db, "MariaDB");
     public static final Tech PostgreSQL = new Tech(Db, "PostgreSQL");
     public static final Tech MsSQL = new Tech(Db, "Microsoft SQL Server");
     public static final Tech Oracle = new Tech(Db, "Oracle");
@@ -49,6 +50,7 @@ public class Tech implements Comparable<Tech> {
     public static final Tech ASP = new Tech(Lang, "ASP");
     public static final Tech C = new Tech(Lang, "C");
     public static final Tech JAVA = new Tech(Lang, "Java");
+    public static final Tech SPRING = new Tech(JAVA, "Spring");
     public static final Tech JAVASCRIPT = new Tech(Lang, "JavaScript");
     public static final Tech JSP_SERVLET = new Tech(Lang, "JSP/Servlet");
     public static final Tech PHP = new Tech(Lang, "PHP");
@@ -75,6 +77,7 @@ public class Tech implements Comparable<Tech> {
                     Arrays.asList(
                             Db,
                             MySQL,
+                            MariaDB,
                             PostgreSQL,
                             MsSQL,
                             Oracle,
@@ -91,6 +94,7 @@ public class Tech implements Comparable<Tech> {
                             ASP,
                             C,
                             JAVA,
+                            SPRING,
                             JAVASCRIPT,
                             JSP_SERVLET,
                             PHP,
@@ -112,10 +116,14 @@ public class Tech implements Comparable<Tech> {
     private static final TreeSet<Tech> topLevelTech =
             new TreeSet<>(Arrays.asList(Db, Lang, OS, SCM, WS));
 
-    /** @deprecated Not for public use. Replaced by {@link #getAll()}. */
+    /**
+     * @deprecated Not for public use. Replaced by {@link #getAll()}.
+     */
     @Deprecated public static final Tech[] builtInTech = allTech.toArray(new Tech[] {});
 
-    /** @deprecated Not for public use. Replaced by {@link #getTopLevel()}. */
+    /**
+     * @deprecated Not for public use. Replaced by {@link #getTopLevel()}.
+     */
     @Deprecated
     public static final Tech[] builtInTopLevelTech = topLevelTech.toArray(new Tech[] {});
 

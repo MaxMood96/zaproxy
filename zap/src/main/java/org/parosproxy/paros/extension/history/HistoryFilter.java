@@ -47,7 +47,7 @@ public class HistoryFilter {
     private List<Pattern> urlIncPatternList = new ArrayList<>();
     private List<Pattern> urlExcPatternList = new ArrayList<>();
 
-    private Logger logger = LogManager.getLogger(HistoryFilter.class);
+    private static final Logger LOGGER = LogManager.getLogger(HistoryFilter.class);
 
     public void setMethods(List<String> methods) {
         methodList.clear();
@@ -106,8 +106,8 @@ public class HistoryFilter {
             boolean foundAlert = false;
             if (riskList.size() > 0 || confidenceList.size() > 0) {
                 for (Alert alert : historyRef.getAlerts()) {
-                    if ((riskList.size() == 0 || riskList.contains(Alert.MSG_RISK[alert.getRisk()]))
-                            && (confidenceList.size() == 0
+                    if ((riskList.isEmpty() || riskList.contains(Alert.MSG_RISK[alert.getRisk()]))
+                            && (confidenceList.isEmpty()
                                     || confidenceList.contains(
                                             Alert.MSG_CONFIDENCE[alert.getConfidence()]))) {
                         foundAlert = true;
@@ -148,7 +148,7 @@ public class HistoryFilter {
                 }
             }
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
         return true;
     }

@@ -42,6 +42,7 @@ import org.zaproxy.zap.extension.api.ApiResponseList;
 import org.zaproxy.zap.extension.api.ApiResponseSet;
 import org.zaproxy.zap.extension.api.ApiView;
 
+@Deprecated(since = "2.16.0", forRemoval = true)
 public class ScriptAPI extends ApiImplementor {
 
     private static final String PREFIX = "script";
@@ -451,7 +452,7 @@ public class ScriptAPI extends ApiImplementor {
             super(name);
 
             defaultResponse =
-                    new ApiResponseSet<String>(name, vars) {
+                    new ApiResponseSet<>(name, vars) {
 
                         @Override
                         public JSON toJSON() {

@@ -20,23 +20,30 @@
 package org.zaproxy.zap.extension.history;
 
 import org.parosproxy.paros.extension.history.ExtensionHistory;
-import org.parosproxy.paros.extension.manualrequest.ManualRequestEditorDialog;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.view.popup.PopupMenuItemHttpMessageContainer;
 
+/**
+ * @deprecated (2.12.0) Replaced by Requester add-on.
+ */
+@Deprecated
+@SuppressWarnings("serial")
 public class PopupMenuResendMessage extends PopupMenuItemHttpMessageContainer {
 
     private static final long serialVersionUID = 1L;
     private ExtensionHistory extension = null;
 
-    /** @param label */
+    /**
+     * @param label
+     */
     public PopupMenuResendMessage(String label) {
         super(label);
     }
 
     @Override
     public void performAction(HttpMessage msg) {
-        ManualRequestEditorDialog dialog = extension.getResendDialog();
+        org.parosproxy.paros.extension.manualrequest.ManualRequestEditorDialog dialog =
+                extension.getResendDialog();
 
         dialog.setMessage(msg.cloneRequest());
         dialog.setVisible(true);

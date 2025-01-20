@@ -20,6 +20,7 @@
 package org.zaproxy.zap.extension.ascan;
 
 import java.awt.CardLayout;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -31,26 +32,24 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.core.scanner.ScannerParam;
 import org.parosproxy.paros.model.OptionsParam;
 import org.parosproxy.paros.view.AbstractParamPanel;
 import org.zaproxy.zap.utils.ZapNumberSpinner;
 import org.zaproxy.zap.view.LayoutHelper;
-import org.zaproxy.zap.view.PositiveValuesSlider;
 
+@SuppressWarnings("serial")
 public class OptionsScannerPanel extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
     private JPanel panelScanner = null;
     private JSlider sliderHostPerScan = null;
-    private JSlider sliderThreadsPerHost = null;
+    private ZapNumberSpinner spinnerThreadsPerHost = null;
     private ZapNumberSpinner spinnerDelayInMs = null;
-    private JLabel labelThreadsPerHostValue = null;
     private ZapNumberSpinner spinnerMaxRuleDuration = null;
     private ZapNumberSpinner spinnerMaxScanDuration = null;
+    private ZapNumberSpinner maxAlertsPerRule;
     private ZapNumberSpinner spinnerMaxResultsList = null;
     private JCheckBox chkInjectPluginIdInHeader = null;
     private JCheckBox chkHandleAntiCsrfTokens = null;
@@ -108,27 +107,17 @@ public class OptionsScannerPanel extends AbstractParamPanel {
                             0,
                             row,
                             2,
-                            1.0D,
+                            0.0D,
                             0,
                             GridBagConstraints.HORIZONTAL,
                             new Insets(2, 2, 2, 2)));
             panelScanner.add(
-                    getLabelThreadsPerHostValue(),
+                    getSpinnerThreadsPerHost(),
                     LayoutHelper.getGBC(
-                            2,
-                            row++,
                             1,
-                            1.0D,
-                            0,
-                            GridBagConstraints.HORIZONTAL,
-                            new Insets(2, 2, 2, 2)));
-            panelScanner.add(
-                    getSliderThreadsPerHost(),
-                    LayoutHelper.getGBC(
-                            0,
                             row++,
-                            3,
-                            1.0D,
+                            2,
+                            0.0D,
                             0,
                             GridBagConstraints.HORIZONTAL,
                             new Insets(2, 2, 2, 2)));
@@ -196,6 +185,31 @@ public class OptionsScannerPanel extends AbstractParamPanel {
                             GridBagConstraints.HORIZONTAL,
                             new Insets(2, 2, 2, 2)));
 
+            maxAlertsPerRule = new ZapNumberSpinner();
+            JLabel label =
+                    new JLabel(Constant.messages.getString("ascan.options.maxAlertsPerRule.label"));
+            label.setLabelFor(maxAlertsPerRule);
+            panelScanner.add(
+                    label,
+                    LayoutHelper.getGBC(
+                            0,
+                            row,
+                            1,
+                            0.0D,
+                            0,
+                            GridBagConstraints.HORIZONTAL,
+                            new Insets(2, 2, 2, 2)));
+            panelScanner.add(
+                    maxAlertsPerRule,
+                    LayoutHelper.getGBC(
+                            1,
+                            row++,
+                            2,
+                            0.0D,
+                            0,
+                            GridBagConstraints.HORIZONTAL,
+                            new Insets(2, 2, 2, 2)));
+
             panelScanner.add(
                     new JLabel(Constant.messages.getString("ascan.options.delayInMs.label")),
                     LayoutHelper.getGBC(
@@ -212,6 +226,20 @@ public class OptionsScannerPanel extends AbstractParamPanel {
                             1,
                             row++,
                             2,
+                            0.0D,
+                            0,
+                            GridBagConstraints.HORIZONTAL,
+                            new Insets(2, 2, 2, 2)));
+
+            JLabel delayDeprecated =
+                    new JLabel(Constant.messages.getString("ascan.options.delayInMs.deprecated"));
+            delayDeprecated.setFont(delayDeprecated.getFont().deriveFont(Font.BOLD));
+            panelScanner.add(
+                    delayDeprecated,
+                    LayoutHelper.getGBC(
+                            0,
+                            row++,
+                            3,
                             0.0D,
                             0,
                             GridBagConstraints.HORIZONTAL,
@@ -372,15 +400,17 @@ public class OptionsScannerPanel extends AbstractParamPanel {
     }
 
     @Override
+    @SuppressWarnings("removal")
     public void initParam(Object obj) {
         OptionsParam options = (OptionsParam) obj;
         ScannerParam param = options.getParamSet(ScannerParam.class);
         getSliderHostPerScan().setValue(param.getHostPerScan());
-        getSliderThreadsPerHost().setValue(param.getThreadPerHost());
+        getSpinnerThreadsPerHost().setValue(param.getThreadPerHost());
         getSpinnerDelayInMs().setValue(param.getDelayInMs());
         getSpinnerMaxResultsList().setValue(param.getMaxResultsToList());
         getSpinnerMaxRuleDuration().setValue(param.getMaxRuleDurationInMins());
         getSpinnerMaxScanDuration().setValue(param.getMaxScanDurationInMins());
+        maxAlertsPerRule.setValue(param.getMaxAlertsPerRule());
         getChkInjectPluginIdInHeader().setSelected(param.isInjectPluginIdInHeader());
         getChkHandleAntiCSRFTokens().setSelected(param.getHandleAntiCSRFTokens());
         getChkPromptInAttackMode().setSelected(param.isPromptInAttackMode());
@@ -395,15 +425,17 @@ public class OptionsScannerPanel extends AbstractParamPanel {
     }
 
     @Override
+    @SuppressWarnings("removal")
     public void saveParam(Object obj) throws Exception {
         OptionsParam options = (OptionsParam) obj;
         ScannerParam param = options.getParamSet(ScannerParam.class);
         param.setHostPerScan(getSliderHostPerScan().getValue());
-        param.setThreadPerHost(getSliderThreadsPerHost().getValue());
+        param.setThreadPerHost(getSpinnerThreadsPerHost().getValue());
         param.setDelayInMs(getDelayInMs());
         param.setMaxResultsToList(this.getSpinnerMaxResultsList().getValue());
         param.setMaxRuleDurationInMins(this.getSpinnerMaxRuleDuration().getValue());
         param.setMaxScanDurationInMins(this.getSpinnerMaxScanDuration().getValue());
+        param.setMaxAlertsPerRule(maxAlertsPerRule.getValue());
         param.setInjectPluginIdInHeader(getChkInjectPluginIdInHeader().isSelected());
         param.setHandleAntiCSRFTokens(getChkHandleAntiCSRFTokens().isSelected());
         param.setPromptInAttackMode(getChkPromptInAttackMode().isSelected());
@@ -435,24 +467,12 @@ public class OptionsScannerPanel extends AbstractParamPanel {
         return sliderHostPerScan;
     }
 
-    /**
-     * This method initializes sliderThreadsPerHost
-     *
-     * @return javax.swing.JSlider
-     */
-    private JSlider getSliderThreadsPerHost() {
-        if (sliderThreadsPerHost == null) {
-            sliderThreadsPerHost = new PositiveValuesSlider(Constant.MAX_THREADS_PER_SCAN);
-
-            sliderThreadsPerHost.addChangeListener(
-                    new ChangeListener() {
-                        @Override
-                        public void stateChanged(ChangeEvent e) {
-                            setLabelThreadsPerHostValue(getSliderThreadsPerHost().getValue());
-                        }
-                    });
+    private ZapNumberSpinner getSpinnerThreadsPerHost() {
+        if (spinnerThreadsPerHost == null) {
+            spinnerThreadsPerHost =
+                    new ZapNumberSpinner(1, Constant.getDefaultThreadCount(), Integer.MAX_VALUE);
         }
-        return sliderThreadsPerHost;
+        return spinnerThreadsPerHost;
     }
 
     private ZapNumberSpinner getSpinnerDelayInMs() {
@@ -464,20 +484,6 @@ public class OptionsScannerPanel extends AbstractParamPanel {
 
     private int getDelayInMs() {
         return this.spinnerDelayInMs.getValue();
-    }
-
-    private void setLabelThreadsPerHostValue(int value) {
-        if (labelThreadsPerHostValue == null) {
-            labelThreadsPerHostValue = new JLabel();
-        }
-        labelThreadsPerHostValue.setText(String.valueOf(value));
-    }
-
-    private JLabel getLabelThreadsPerHostValue() {
-        if (labelThreadsPerHostValue == null) {
-            setLabelThreadsPerHostValue(getSliderThreadsPerHost().getValue());
-        }
-        return labelThreadsPerHostValue;
     }
 
     private ZapNumberSpinner getSpinnerMaxResultsList() {

@@ -24,15 +24,15 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import net.htmlparser.jericho.Source;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpMessage;
-import org.zaproxy.zap.extension.pscan.PassiveScanThread;
 import org.zaproxy.zap.extension.pscan.PluginPassiveScanner;
 import org.zaproxy.zap.model.SessionStructure;
 import org.zaproxy.zap.utils.Stats;
 
+@Deprecated(since = "2.16.0", forRemoval = true)
 public class StatsPassiveScanner extends PluginPassiveScanner {
 
     public static final String CODE_STATS_PREFIX = "stats.code.";
@@ -49,6 +49,11 @@ public class StatsPassiveScanner extends PluginPassiveScanner {
     @Override
     public int getPluginId() {
         return 50003;
+    }
+
+    @Override
+    public StatsPassiveScanner copy() {
+        return new StatsPassiveScanner();
     }
 
     @Override
@@ -86,10 +91,5 @@ public class StatsPassiveScanner extends PluginPassiveScanner {
     @Override
     public boolean appliesToHistoryType(int historyType) {
         return true;
-    }
-
-    @Override
-    public void setParent(PassiveScanThread parent) {
-        // Ignore
     }
 }

@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -56,7 +56,7 @@ public class DbSQL implements DatabaseListener {
     private static DbSQL singleton = null;
     private static SqlDatabaseServer dbServer = null;
 
-    private static final Logger logger = LogManager.getLogger(DbSQL.class);
+    private static final Logger LOGGER = LogManager.getLogger(DbSQL.class);
 
     private Map<String, StatementPool> stmtPool = new HashMap<>();
 
@@ -65,6 +65,18 @@ public class DbSQL implements DatabaseListener {
             singleton = new DbSQL();
         }
         return singleton;
+    }
+
+    static void reset() {
+        dbProperties = null;
+        sqlProperties = null;
+        dbType = null;
+        singleton = null;
+        dbServer = null;
+    }
+
+    static void setSqlProperties(Properties properties) {
+        sqlProperties = properties;
     }
 
     protected String getDbUser() {
@@ -119,7 +131,7 @@ public class DbSQL implements DatabaseListener {
         try (Reader sqlReader = new FileReader(sqlFile)) {
             sqlProperties.load(sqlReader);
         } catch (Exception e) {
-            logger.error("No SQL properties file for db type " + sqlFile.getAbsolutePath());
+            LOGGER.error("No SQL properties file for db type {}", sqlFile.getAbsolutePath());
             throw new DatabaseException(
                     "Missing SQL properties file: " + sqlFile.getAbsolutePath());
         }
@@ -260,11 +272,11 @@ public class DbSQL implements DatabaseListener {
                         ps.close();
                         Stats.incCounter("sqldb.conn.closed");
                     } catch (SQLException e) {
-                        logger.error("Error closing prepared statement", e);
+                        LOGGER.error("Error closing prepared statement", e);
                     }
                 }
             } else {
-                logger.error(
+                LOGGER.error(
                         "Releasing prepared statement not in a pool",
                         new InvalidParameterException());
             }

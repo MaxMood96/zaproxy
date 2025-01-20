@@ -1,10 +1,11 @@
 package org.zaproxy.zap
 
 import com.install4j.gradle.Install4jTask
-import com.netflix.gradle.plugins.deb.Deb
 import java.util.regex.Pattern
+import org.cyclonedx.gradle.CycloneDxTask
 import org.zaproxy.zap.GitHubUser
 import org.zaproxy.zap.GitHubRepo
+import org.zaproxy.zap.tasks.CreateDmg
 import org.zaproxy.zap.tasks.CreateGitHubRelease
 import org.zaproxy.zap.tasks.CreateMainRelease
 import org.zaproxy.zap.tasks.CreatePullRequest
@@ -13,6 +14,7 @@ import org.zaproxy.zap.tasks.HandleMainRelease
 import org.zaproxy.zap.tasks.HandleWeeklyRelease
 import org.zaproxy.zap.tasks.PrepareMainRelease
 import org.zaproxy.zap.tasks.PrepareNextDevIter
+import org.zaproxy.zap.tasks.UploadAssetsGitHubRelease
 
 val ghUser = GitHubUser("zapbot", "12745184+zapbot@users.noreply.github.com", System.getenv("ZAPBOT_TOKEN"))
 val zaproxyRepo = GitHubRepo("zaproxy", "zaproxy", rootDir)
@@ -22,7 +24,6 @@ tasks.register<CreateTagAndGitHubRelease>("createWeeklyRelease") {
     val tagName = dateProvider.map { "w$it" }
 
     user.set(ghUser)
-    authToken.set(System.getenv("GITHUB_TOKEN"))
     repo.set(System.getenv("GITHUB_REPOSITORY"))
     tag.set(tagName)
     tagMessage.set(dateProvider.map { "Weekly release $it" })
@@ -41,20 +42,13 @@ tasks.register<CreateTagAndGitHubRelease>("createWeeklyRelease") {
     }
 }
 
-val buildFileVersionPattern = Pattern.compile("""version = "([^"]+)"""")
-
 val prepareNextDevIter by tasks.registering(PrepareNextDevIter::class) {
-    buildFile.set(File(projectDir, "zap.gradle.kts"))
+    propertiesFile.set(File(projectDir, "gradle.properties"))
 
-    versionPattern.set(buildFileVersionPattern)
-    versionBcPattern.set(Pattern.compile("""val versionBC = "([^"]+)""""))
+    versionProperty.set("version")
+    versionBcProperty.set("zap.japicmp.baseversion")
 
-    val listOfExpression = """(?sm)listOf\((.*?)\)$"""
-    clearDataPatterns.set(listOf(
-        Pattern.compile("packageExcludes = $listOfExpression"),
-        Pattern.compile("fieldExcludes = $listOfExpression"),
-        Pattern.compile("classExcludes = $listOfExpression"),
-        Pattern.compile("methodExcludes = $listOfExpression")))
+    japicmpExcludedDataFile.set(File(projectDir, "gradle/japicmp.yaml"))
 }
 
 val createPullRequestNextDevIter by tasks.registering(CreatePullRequest::class) {
@@ -69,9 +63,12 @@ val createPullRequestNextDevIter by tasks.registering(CreatePullRequest::class) 
 }
 
 val prepareMainRelease by tasks.registering(PrepareMainRelease::class) {
-    buildFile.set(File(projectDir, "zap.gradle.kts"))
+    propertiesFile.set(File(projectDir, "gradle.properties"))
+    securityFile.set(File(rootDir, "SECURITY.md"))
+    snapcraftFile.set(File(rootDir, "snap/snapcraft.yaml"))
 
-    versionPattern.set(buildFileVersionPattern)
+    oldVersionProperty.set("zap.japicmp.baseversion")
+    versionProperty.set("version")
 }
 
 val createPullRequestMainRelease by tasks.registering(CreatePullRequest::class) {
@@ -80,35 +77,31 @@ val createPullRequestMainRelease by tasks.registering(CreatePullRequest::class) 
     branchName.set("release")
 
     commitSummary.set("Update version to ${project.version}")
-    commitDescription.set("Remove `-SNAPSHOT` from the version.")
+    commitDescription.set("""
+    |Remove `-SNAPSHOT` from the version.
+    |Update version in `SECURITY.md` file.
+    |Update version for snap.
+    """.trimMargin())
 
     pullRequestTitle.set("Release version ${project.version}")
-    pullRequestDescription.set("""
-    Pending tasks, update:
-      - [ ] `Constant#VERSION_TAG`
-      - [ ] CFU links (`ExtensionAutoUpdate#ZAP_VERSIONS_REL_XML_DESKTOP_SHORT`, `ZAP_VERSIONS_REL_XML_DAEMON_SHORT`, and `ZAP_VERSIONS_REL_XML_FULL`)
-      - [ ] Add-ons
-      - [ ] macOS JRE
-      - [ ] JavaDoc link in `README`
-    """.trimIndent())
+    pullRequestDescription.set("")
 }
 
+val checksumAlg = "SHA-256"
 tasks.register<CreateMainRelease>("createMainRelease") {
     val tagName = "v${project.version}"
 
     user.set(ghUser)
-    authToken.set(System.getenv("GITHUB_TOKEN"))
     repo.set(System.getenv("GITHUB_REPOSITORY"))
     tag.set(tagName)
     tagMessage.set("Version ${project.version}")
 
     title.set(tagName)
-    body.set("")
-    checksumAlgorithm.set("SHA-256")
+    body.set("Release notes: https://www.zaproxy.org/docs/desktop/releases/${project.version}/")
+    checksumAlgorithm.set(checksumAlg)
     draft.set(true)
 
     if (!"${project.version}".endsWith("-SNAPSHOT")) {
-        val distDebian by tasks.existing(Deb::class)
         val installers by tasks.existing(Install4jTask::class)
 
         val installersFileTree: Provider<FileTree> = installers.map { fileTree(it.destination!!) }
@@ -121,10 +114,6 @@ tasks.register<CreateMainRelease>("createMainRelease") {
             register("crossplatform") {
                 file.set(tasks.named<Zip>("distCrossplatform").flatMap { it.archiveFile })
                 contentType.set("application/zip")
-            }
-            register("debian") {
-                file.set(distDebian.flatMap { it.archiveFile })
-                contentType.set("application/vnd.debian.binary-package")
             }
             register("linux") {
                 file.set(tasks.named<Tar>("distLinux").flatMap { it.archiveFile })
@@ -141,6 +130,34 @@ tasks.register<CreateMainRelease>("createMainRelease") {
             register("windows32-installer") {
                 file.set(mapToFile(installersFileTree, "ZAP_${version.toString().replace('.', '_')}_windows-x32.exe"))
                 contentType.set("application/x-ms-dos-executable")
+            }
+            register("bom") {
+                val cyclonedxBom by tasks.existing(CycloneDxTask::class)
+                file.set(cyclonedxBom.map { project.layout.projectDirectory.file(File(it.destination.get(), "${it.outputName.get()}.json").absolutePath) })
+                contentType.set("application/json")
+            }
+        }
+    }
+}
+
+tasks.register<UploadAssetsGitHubRelease>("uploadMacDist") {
+    val tagName = "v${project.version}"
+
+    user.set(ghUser)
+    repo.set(System.getenv("GITHUB_REPOSITORY"))
+    tag.set(tagName)
+
+    checksumAlgorithm.set(checksumAlg)
+
+    if (!"${project.version}".endsWith("-SNAPSHOT")) {
+        assets {
+            register("macos") {
+                file.set(tasks.named<CreateDmg>("distMac").flatMap { it.dmg })
+                contentType.set("application/x-diskcopy")
+            }
+            register("macos-arm64") {
+                file.set(tasks.named<CreateDmg>("distMacArm64").flatMap { it.dmg })
+                contentType.set("application/x-diskcopy")
             }
         }
     }

@@ -23,7 +23,9 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.EventQueue;
 import java.awt.event.KeyEvent;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -48,11 +50,11 @@ import org.zaproxy.zap.extension.httppanel.HttpPanelResponse;
 import org.zaproxy.zap.extension.httppanel.InvalidMessageDataException;
 import org.zaproxy.zap.extension.httppanel.Message;
 import org.zaproxy.zap.extension.httppanel.view.impl.models.http.HttpPanelViewModelUtils;
-import org.zaproxy.zap.extension.tab.Tab;
 import org.zaproxy.zap.utils.DisplayUtils;
 import org.zaproxy.zap.view.ZapToggleButton;
 
-public class BreakPanel extends AbstractPanel implements Tab, BreakpointManagementInterface {
+@SuppressWarnings("serial")
+public class BreakPanel extends AbstractPanel implements BreakpointManagementInterface {
 
     private static final long serialVersionUID = 1L;
     private static final Logger LOGGER = LogManager.getLogger(BreakPanel.class);
@@ -76,8 +78,9 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
     private final JButton toolBarBtnDrop;
     private final JButton toolBarBtnBreakPoint;
 
-    private ZapToggleButton fixRequestContentLength = null;
-    private ZapToggleButton fixResponseContentLength = null;
+    private ZapToggleButton fixRequestContentLength;
+    private ZapToggleButton fixResponseContentLength;
+    private ZapToggleButton fixRequestHostHeader;
 
     private Message msg;
     private boolean isAlwaysOnTop = false;
@@ -124,7 +127,7 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
 
         this.setLayout(new BorderLayout());
 
-        breakToolbarFactory = new BreakPanelToolbarFactory(breakpointsParams, this);
+        breakToolbarFactory = new BreakPanelToolbarFactory(extension, breakpointsParams, this);
 
         panelContent = new JPanel(new CardLayout());
         this.add(panelContent, BorderLayout.CENTER);
@@ -176,6 +179,7 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
         requestOptionsToolBar.setRollover(true);
 
         requestOptionsToolBar.add(this.getRequestButtonFixContentLength());
+        requestOptionsToolBar.add(this.getRequestButtonFixHostHeader());
         requestPanel.addOptions(requestOptionsToolBar, HttpPanel.OptionsLocation.AFTER_COMPONENTS);
 
         JToolBar responseOptionsToolBar = new JToolBar();
@@ -352,6 +356,8 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
                                 requestPanel.setEditable(true);
                                 getRequestButtonFixContentLength()
                                         .setVisible(msg instanceof HttpMessage);
+                                getRequestButtonFixHostHeader()
+                                        .setVisible(msg instanceof HttpMessage);
                                 cl.show(panelContent, REQUEST_PANEL);
                             } else {
                                 responsePanel.setMessage(aMessage, true);
@@ -388,10 +394,8 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
 
                             if (isRequest) {
                                 Message msg = getMessage();
-                                if (msg instanceof HttpMessage
-                                        && getRequestButtonFixContentLength().isSelected()) {
-                                    HttpPanelViewModelUtils.updateRequestContentLength(
-                                            (HttpMessage) msg);
+                                if (msg instanceof HttpMessage) {
+                                    updateHttpRequestMessage((HttpMessage) msg);
                                 }
                                 cl.show(panelContent, REQUEST_PANEL);
                             } else {
@@ -407,6 +411,24 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
                     });
         } catch (Exception ie) {
             LOGGER.warn(ie.getMessage(), ie);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void updateHttpRequestMessage(HttpMessage msg) {
+        if (getRequestButtonFixContentLength().isSelected()) {
+            HttpPanelViewModelUtils.updateRequestContentLength(msg);
+        }
+        if (!getRequestButtonFixHostHeader().isSelected()) {
+            Map<String, Object> properties;
+            if (msg.getUserObject() instanceof Map<?, ?>) {
+                properties = (Map<String, Object>) msg.getUserObject();
+            } else {
+                properties = new HashMap<>();
+                msg.setUserObject(properties);
+            }
+
+            properties.put("host.normalization", Boolean.FALSE);
         }
     }
 
@@ -457,6 +479,7 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
         requestPanel.clearView(false);
         requestPanel.setEditable(false);
         getRequestButtonFixContentLength().setVisible(false);
+        getRequestButtonFixHostHeader().setVisible(false);
         breakpointLeft();
     }
 
@@ -625,6 +648,22 @@ public class BreakPanel extends AbstractPanel implements Tab, BreakpointManageme
             fixResponseContentLength.setVisible(false);
         }
         return fixResponseContentLength;
+    }
+
+    private ZapToggleButton getRequestButtonFixHostHeader() {
+        if (fixRequestHostHeader == null) {
+            fixRequestHostHeader =
+                    new ZapToggleButton(
+                            DisplayUtils.getScaledIcon(
+                                    new ImageIcon(
+                                            BreakPanel.class.getResource(
+                                                    "/resource/icon/fugue/server.png"))),
+                            true);
+            fixRequestHostHeader.setToolTipText(
+                    Constant.messages.getString("brk.checkBox.fixHostHeader"));
+            fixRequestHostHeader.setVisible(false);
+        }
+        return fixRequestHostHeader;
     }
 
     /**

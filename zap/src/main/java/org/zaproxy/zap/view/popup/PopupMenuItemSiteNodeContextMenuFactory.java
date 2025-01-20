@@ -29,7 +29,10 @@ import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.model.Context;
 
-/** @since 2.3.0 */
+/**
+ * @since 2.3.0
+ */
+@SuppressWarnings("serial")
 public abstract class PopupMenuItemSiteNodeContextMenuFactory
         extends PopupMenuItemSiteNodeContainer {
 
@@ -83,7 +86,6 @@ public abstract class PopupMenuItemSiteNodeContextMenuFactory
         List<Context> contexts = session.getContexts();
         for (Context context : contexts) {
             ExtensionPopupMenuItem piicm = getContextMenu(context, this.parentMenu);
-            piicm.setMenuIndex(this.getMenuIndex());
             mainPopupMenuItems.add(piicm);
             this.subMenus.add(piicm);
         }

@@ -19,66 +19,49 @@
  */
 package org.zaproxy.zap.spider;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import net.htmlparser.jericho.Config;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.URIException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.parosproxy.paros.network.HttpMessage;
-import org.parosproxy.paros.network.HttpRequestHeader;
-import org.zaproxy.zap.spider.filters.FetchFilter;
-import org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus;
-import org.zaproxy.zap.spider.filters.ParseFilter;
-import org.zaproxy.zap.spider.parser.SpiderGitParser;
-import org.zaproxy.zap.spider.parser.SpiderHtmlFormParser;
-import org.zaproxy.zap.spider.parser.SpiderHtmlParser;
-import org.zaproxy.zap.spider.parser.SpiderODataAtomParser;
-import org.zaproxy.zap.spider.parser.SpiderParser;
-import org.zaproxy.zap.spider.parser.SpiderParserListener;
-import org.zaproxy.zap.spider.parser.SpiderRedirectParser;
-import org.zaproxy.zap.spider.parser.SpiderRobotstxtParser;
-import org.zaproxy.zap.spider.parser.SpiderSVNEntriesParser;
-import org.zaproxy.zap.spider.parser.SpiderSitemapXMLParser;
-import org.zaproxy.zap.spider.parser.SpiderTextParser;
+import org.parosproxy.paros.network.HttpHeaderField;
 
 /**
  * The SpiderController is used to manage the crawling process and interacts directly with the
  * Spider Task threads.
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
  */
-public class SpiderController implements SpiderParserListener {
+@Deprecated
+public class SpiderController implements org.zaproxy.zap.spider.parser.SpiderParserListener {
 
     /** The fetch filters used by the spider to filter the resources which are fetched. */
-    private LinkedList<FetchFilter> fetchFilters;
+    private LinkedList<org.zaproxy.zap.spider.filters.FetchFilter> fetchFilters;
 
     /**
      * The parse filters used by the spider to filter the resources which were fetched, but should
      * not be parsed.
      */
-    private LinkedList<ParseFilter> parseFilters;
+    private LinkedList<org.zaproxy.zap.spider.filters.ParseFilter> parseFilters;
 
-    private ParseFilter defaultParseFilter;
+    private org.zaproxy.zap.spider.filters.ParseFilter defaultParseFilter;
 
     /** The parsers used by the spider. */
-    private LinkedList<SpiderParser> parsers;
+    private LinkedList<org.zaproxy.zap.spider.parser.SpiderParser> parsers;
 
-    private List<SpiderParser> parsersUnmodifiableView;
+    private List<org.zaproxy.zap.spider.parser.SpiderParser> parsersUnmodifiableView;
 
     /** The spider. */
     private Spider spider;
 
-    /** The resources visited using GET method. */
-    private Set<String> visitedGet;
-
-    /** The resources visited using POST method. */
-    private Map<String, ArrayList<String>> visitedPost;
+    /** The resources visited as a set. */
+    private Set<String> visitedResources;
 
     /** The Constant log. */
     private static final Logger log = LogManager.getLogger(SpiderController.class);
@@ -89,72 +72,82 @@ public class SpiderController implements SpiderParserListener {
      * @param spider the spider
      * @param customParsers the custom spider parsers
      */
-    protected SpiderController(Spider spider, List<SpiderParser> customParsers) {
+    protected SpiderController(
+            Spider spider, List<org.zaproxy.zap.spider.parser.SpiderParser> customParsers) {
         super();
         this.spider = spider;
         this.fetchFilters = new LinkedList<>();
         this.parseFilters = new LinkedList<>();
-        this.visitedGet = new HashSet<>();
-        this.visitedPost = new HashMap<>();
+        this.visitedResources = new HashSet<>();
 
         prepareDefaultParsers();
-        for (SpiderParser parser : customParsers) {
+        for (org.zaproxy.zap.spider.parser.SpiderParser parser : customParsers) {
             this.addSpiderParser(parser);
         }
     }
 
     private void prepareDefaultParsers() {
         this.parsers = new LinkedList<>();
-        SpiderParser parser;
+        org.zaproxy.zap.spider.parser.SpiderParser parser;
 
         // If parsing of robots.txt is enabled
         if (spider.getSpiderParam().isParseRobotsTxt()) {
-            parser = new SpiderRobotstxtParser(spider.getSpiderParam());
+            parser =
+                    new org.zaproxy.zap.spider.parser.SpiderRobotstxtParser(
+                            spider.getSpiderParam());
             parsers.add(parser);
         }
 
         // If parsing of sitemap.xml is enabled
         if (spider.getSpiderParam().isParseSitemapXml()) {
-            if (log.isDebugEnabled()) log.debug("Adding SpiderSitemapXMLParser");
-            parser = new SpiderSitemapXMLParser(spider.getSpiderParam());
+            log.debug("Adding SpiderSitemapXMLParser");
+            parser =
+                    new org.zaproxy.zap.spider.parser.SpiderSitemapXMLParser(
+                            spider.getSpiderParam());
             parsers.add(parser);
         } else {
-            if (log.isDebugEnabled()) log.debug("NOT Adding SpiderSitemapXMLParser");
+            log.debug("NOT Adding SpiderSitemapXMLParser");
         }
 
         // If parsing of SVN entries is enabled
         if (spider.getSpiderParam().isParseSVNEntries()) {
-            parser = new SpiderSVNEntriesParser(spider.getSpiderParam());
+            parser =
+                    new org.zaproxy.zap.spider.parser.SpiderSVNEntriesParser(
+                            spider.getSpiderParam());
             parsers.add(parser);
         }
 
         // If parsing of GIT entries is enabled
         if (spider.getSpiderParam().isParseGit()) {
-            parser = new SpiderGitParser(spider.getSpiderParam());
+            parser = new org.zaproxy.zap.spider.parser.SpiderGitParser(spider.getSpiderParam());
             parsers.add(parser);
         }
 
         // Redirect requests parser
-        parser = new SpiderRedirectParser();
+        parser = new org.zaproxy.zap.spider.parser.SpiderRedirectParser(spider.getSpiderParam());
+        parsers.add(parser);
+
+        // HTTP Header parser
+        parser = new org.zaproxy.zap.spider.parser.SpiderHttpHeaderParser(spider.getSpiderParam());
         parsers.add(parser);
 
         // Simple HTML parser
-        parser = new SpiderHtmlParser(spider.getSpiderParam());
+        parser = new org.zaproxy.zap.spider.parser.SpiderHtmlParser(spider.getSpiderParam());
         this.parsers.add(parser);
 
         // HTML Form parser
         parser =
-                new SpiderHtmlFormParser(
+                new org.zaproxy.zap.spider.parser.SpiderHtmlFormParser(
                         spider.getSpiderParam(), spider.getExtensionSpider().getValueGenerator());
         this.parsers.add(parser);
         Config.CurrentCompatibilityMode.setFormFieldNameCaseInsensitive(false);
 
         // Prepare the parsers for OData ATOM files
-        parser = new SpiderODataAtomParser();
+        parser = new org.zaproxy.zap.spider.parser.SpiderODataAtomParser(spider.getSpiderParam());
         this.parsers.add(parser);
 
         // Prepare the parsers for simple non-HTML files
-        parser = new SpiderTextParser();
+        parser = new org.zaproxy.zap.spider.parser.SpiderTextParser(spider.getSpiderParam());
         this.parsers.add(parser);
 
         this.parsersUnmodifiableView = Collections.unmodifiableList(parsers);
@@ -167,30 +160,34 @@ public class SpiderController implements SpiderParserListener {
      * @param method the http method used for fetching the resource
      */
     protected void addSeed(URI uri, String method) {
+        org.zaproxy.zap.spider.parser.SpiderResourceFound resourceFound =
+                org.zaproxy.zap.spider.parser.SpiderResourceFound.builder()
+                        .setUri(uri.toString())
+                        .setMethod(method)
+                        .build();
         // Check if the uri was processed already
-        String visitedURI;
+        String resourceIdentifier = "";
         try {
-            visitedURI =
-                    URLCanonicalizer.buildCleanedParametersURIRepresentation(
-                            uri,
-                            spider.getSpiderParam().getHandleParameters(),
-                            spider.getSpiderParam().isHandleODataParametersVisited());
+            resourceIdentifier = buildCanonicalResourceIdentifier(uri, resourceFound);
         } catch (URIException e) {
             return;
         }
-        synchronized (visitedGet) {
-            if (visitedGet.contains(visitedURI)) {
-                log.debug("URI already visited: " + visitedURI);
+        synchronized (visitedResources) {
+            if (visitedResources.contains(resourceIdentifier)) {
+                log.debug("URI already visited: {}", uri);
                 return;
             } else {
-                visitedGet.add(visitedURI);
+                visitedResources.add(resourceIdentifier);
             }
         }
         // Create and submit the new task
-        SpiderTask task = new SpiderTask(spider, null, uri, 0, method);
+        SpiderTask task = new SpiderTask(spider, resourceFound, uri);
         spider.submitTask(task);
         // Add the uri to the found list
-        spider.notifyListenersFoundURI(uri.toString(), method, FetchStatus.SEED);
+        spider.notifyListenersFoundURI(
+                uri.toString(),
+                method,
+                org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.SEED);
     }
 
     /**
@@ -198,7 +195,7 @@ public class SpiderController implements SpiderParserListener {
      *
      * @return the fetch filters
      */
-    protected LinkedList<FetchFilter> getFetchFilters() {
+    protected LinkedList<org.zaproxy.zap.spider.filters.FetchFilter> getFetchFilters() {
         return fetchFilters;
     }
 
@@ -207,8 +204,8 @@ public class SpiderController implements SpiderParserListener {
      *
      * @param filter the filter
      */
-    public void addFetchFilter(FetchFilter filter) {
-        log.debug("Loading fetch filter: " + filter.getClass().getSimpleName());
+    public void addFetchFilter(org.zaproxy.zap.spider.filters.FetchFilter filter) {
+        log.debug("Loading fetch filter: {}", filter.getClass().getSimpleName());
         fetchFilters.add(filter);
     }
 
@@ -217,7 +214,7 @@ public class SpiderController implements SpiderParserListener {
      *
      * @return the parses the filters
      */
-    protected LinkedList<ParseFilter> getParseFilters() {
+    protected LinkedList<org.zaproxy.zap.spider.filters.ParseFilter> getParseFilters() {
         return parseFilters;
     }
 
@@ -226,180 +223,139 @@ public class SpiderController implements SpiderParserListener {
      *
      * @param filter the filter
      */
-    public void addParseFilter(ParseFilter filter) {
-        log.debug("Loading parse filter: " + filter.getClass().getSimpleName());
+    public void addParseFilter(org.zaproxy.zap.spider.filters.ParseFilter filter) {
+        log.debug("Loading parse filter: {}", filter.getClass().getSimpleName());
         parseFilters.add(filter);
     }
 
-    protected void setDefaultParseFilter(ParseFilter filter) {
-        log.debug("Setting Default filter: " + filter.getClass().getSimpleName());
+    protected void setDefaultParseFilter(org.zaproxy.zap.spider.filters.ParseFilter filter) {
+        log.debug("Setting Default filter: {}", filter.getClass().getSimpleName());
         defaultParseFilter = filter;
     }
 
-    protected ParseFilter getDefaultParseFilter() {
+    protected org.zaproxy.zap.spider.filters.ParseFilter getDefaultParseFilter() {
         return defaultParseFilter;
     }
 
     public void init() {
-        visitedGet.clear();
-        visitedPost.clear();
+        visitedResources.clear();
 
-        for (SpiderParser parser : parsers) {
+        for (org.zaproxy.zap.spider.parser.SpiderParser parser : parsers) {
             parser.addSpiderParserListener(this);
         }
     }
 
     /** Clears the previous process. */
     public void reset() {
-        visitedGet.clear();
-        visitedPost.clear();
+        visitedResources.clear();
 
-        for (SpiderParser parser : parsers) {
+        for (org.zaproxy.zap.spider.parser.SpiderParser parser : parsers) {
             parser.removeSpiderParserListener(this);
         }
     }
 
-    @Override
-    public void resourceURIFound(
-            HttpMessage responseMessage, int depth, String uri, boolean shouldIgnore) {
-        log.debug("New resource found: " + uri);
+    /**
+     * Builds a canonical identifier for found resources considering the method, URI, headers, and
+     * body.
+     *
+     * @param uri uniform resource identifier for resource
+     * @param resourceFound resource found
+     * @return identifier as a string representation usable for equality checks
+     */
+    private String buildCanonicalResourceIdentifier(
+            URI uri, org.zaproxy.zap.spider.parser.SpiderResourceFound resourceFound)
+            throws URIException {
+        StringBuilder identifierBuilder = new StringBuilder(50);
+        String visitedURI =
+                URLCanonicalizer.buildCleanedParametersURIRepresentation(
+                        uri,
+                        spider.getSpiderParam().getHandleParameters(),
+                        spider.getSpiderParam().isHandleODataParametersVisited(),
+                        spider.getSpiderParam()::isIrrelevantUrlParameter);
+        identifierBuilder.append(resourceFound.getMethod());
+        identifierBuilder.append(" ");
+        identifierBuilder.append(visitedURI);
+        identifierBuilder.append("\n");
+        identifierBuilder.append(getCanonicalHeadersString(resourceFound.getHeaders()));
+        identifierBuilder.append("\n");
+        identifierBuilder.append(resourceFound.getBody());
+        return identifierBuilder.toString();
+    }
 
-        if (uri == null) {
-            return;
-        }
+    @Override
+    public void resourceFound(org.zaproxy.zap.spider.parser.SpiderResourceFound resourceFound) {
+        log.debug("New {} resource found: {}", resourceFound.getMethod(), resourceFound.getUri());
 
         // Create the uri
-        URI uriV = createURI(uri);
+        URI uriV = createURI(resourceFound.getUri());
         if (uriV == null) {
             return;
         }
 
-        // Check if the uri was processed already
-        String visitedURI;
+        // Check if the resource was processed already
+        String resourceIdentifier = "";
         try {
-            visitedURI =
-                    URLCanonicalizer.buildCleanedParametersURIRepresentation(
-                            uriV,
-                            spider.getSpiderParam().getHandleParameters(),
-                            spider.getSpiderParam().isHandleODataParametersVisited());
+            resourceIdentifier = buildCanonicalResourceIdentifier(uriV, resourceFound);
         } catch (URIException e) {
             return;
         }
-        synchronized (visitedGet) {
-            if (visitedGet.contains(visitedURI)) {
-                // log.debug("URI already visited: " + visitedURI);
+        synchronized (visitedResources) {
+            if (visitedResources.contains(resourceIdentifier)) {
+                log.debug("Resource already visited: {}", resourceIdentifier.trim());
                 return;
             } else {
-                visitedGet.add(visitedURI);
+                visitedResources.add(resourceIdentifier);
             }
         }
 
         // Check if any of the filters disallows this uri
-        for (FetchFilter f : fetchFilters) {
-            FetchStatus s = f.checkFilter(uriV);
-            if (s != FetchStatus.VALID) {
-                log.debug("URI: " + uriV + " was filtered by a filter with reason: " + s);
-                spider.notifyListenersFoundURI(uri, HttpRequestHeader.GET, s);
+        for (org.zaproxy.zap.spider.filters.FetchFilter f : fetchFilters) {
+            org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus s = f.checkFilter(uriV);
+            if (s != org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.VALID) {
+                log.debug("URI: {} was filtered by a filter with reason: {}", uriV, s);
+                spider.notifyListenersFoundURI(
+                        resourceFound.getUri(), resourceFound.getMethod(), s);
                 return;
             }
         }
 
-        // Check if should be ignored and not fetched
-        if (shouldIgnore) {
-            log.debug(
-                    "URI: "
-                            + uriV
-                            + " is valid, but will not be fetched, by parser recommendation.");
-            spider.notifyListenersFoundURI(uri, HttpRequestHeader.GET, FetchStatus.VALID);
+        // Check if resource should be ignored and not fetched
+        if (resourceFound.isShouldIgnore()) {
+            log.debug("URI: {} is valid, but will not be fetched, by parser recommendation.", uriV);
+            spider.notifyListenersFoundURI(
+                    resourceFound.getUri(),
+                    resourceFound.getMethod(),
+                    org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.VALID);
             return;
         }
 
-        spider.notifyListenersFoundURI(uri, HttpRequestHeader.GET, FetchStatus.VALID);
+        spider.notifyListenersFoundURI(
+                resourceFound.getUri(),
+                resourceFound.getMethod(),
+                org.zaproxy.zap.spider.filters.FetchFilter.FetchStatus.VALID);
 
         // Submit the task
-        SpiderTask task =
-                new SpiderTask(
-                        spider,
-                        responseMessage.getRequestHeader().getURI(),
-                        uriV,
-                        depth,
-                        HttpRequestHeader.GET);
-        spider.submitTask(task);
-    }
-
-    @Override
-    public void resourceURIFound(HttpMessage responseMessage, int depth, String uri) {
-        resourceURIFound(responseMessage, depth, uri, false);
-    }
-
-    @Override
-    public void resourcePostURIFound(
-            HttpMessage responseMessage, int depth, String uri, String requestBody) {
-        log.debug("New POST resource found: " + uri);
-
-        // Check if the uri was processed already
-        synchronized (visitedPost) {
-            if (arrayKeyValueExists(uri, requestBody)) {
-                log.debug("URI already visited: " + uri);
-                return;
-            } else {
-                if (visitedPost.containsKey(uri)) {
-                    visitedPost.get(uri).add(requestBody);
-                } else {
-                    ArrayList<String> l = new ArrayList<>();
-                    l.add(requestBody);
-                    visitedPost.put(uri, l);
-                }
-            }
-        }
-
-        // Create the uri
-        URI uriV = createURI(uri);
-        if (uriV == null) {
-            return;
-        }
-
-        // Check if any of the filters disallows this uri
-        for (FetchFilter f : fetchFilters) {
-            FetchStatus s = f.checkFilter(uriV);
-            if (s != FetchStatus.VALID) {
-                log.debug("URI: " + uriV + " was filtered by a filter with reason: " + s);
-                spider.notifyListenersFoundURI(uri, HttpRequestHeader.POST, s);
-                return;
-            }
-        }
-
-        spider.notifyListenersFoundURI(uri, HttpRequestHeader.POST, FetchStatus.VALID);
-
-        // Submit the task
-        SpiderTask task =
-                new SpiderTask(
-                        spider,
-                        responseMessage.getRequestHeader().getURI(),
-                        uriV,
-                        depth,
-                        HttpRequestHeader.POST,
-                        requestBody);
+        SpiderTask task = new SpiderTask(spider, resourceFound, uriV);
         spider.submitTask(task);
     }
 
     /**
-     * Checks whether the value exists in an ArrayList of certain key.
+     * Builds a canonical string representation for HTTP header fields by sorting the headers based
+     * on the name, trimming and lowercasing the name and value, and removing duplicates.
      *
-     * @param key the string of the uri
-     * @param value the request body of the uri
-     * @return true or false depending whether the uri and request body have already been processed
+     * @param headers list of HTTP headers
+     * @return canonical string representation of headers
      */
-    private boolean arrayKeyValueExists(String key, String value) {
-        if (visitedPost.containsKey(key)) {
-            for (String s : visitedPost.get(key)) {
-                if (s.equals(value)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+    private String getCanonicalHeadersString(List<HttpHeaderField> headers) {
+        return headers.stream()
+                .sorted((h1, h2) -> h1.getName().compareTo(h2.getName()))
+                .map(
+                        h ->
+                                h.getName().trim().toLowerCase()
+                                        + "="
+                                        + h.getValue().trim().toLowerCase())
+                .distinct()
+                .collect(Collectors.joining("|"));
     }
 
     /**
@@ -421,12 +377,12 @@ public class SpiderController implements SpiderParserListener {
                 log.debug("Second try...");
                 uriV = new URI(uri, false);
             } catch (Exception ex) {
-                log.error("Error while converting to uri: " + uri, ex);
+                log.error("Error while converting to uri: {}", uri, ex);
                 return null;
             }
             // A non URIException occurred, so just ignore the URI
         } catch (Exception e) {
-            log.error("Error while converting to uri: " + uri, e);
+            log.error("Error while converting to uri: {}", uri, e);
             return null;
         }
         return uriV;
@@ -437,12 +393,13 @@ public class SpiderController implements SpiderParserListener {
      *
      * @return the parsers
      */
-    public List<SpiderParser> getParsers() {
+    public List<org.zaproxy.zap.spider.parser.SpiderParser> getParsers() {
         return parsersUnmodifiableView;
     }
 
-    public void addSpiderParser(SpiderParser parser) {
-        log.debug("Loading custom Spider Parser: " + parser.getClass().getSimpleName());
+    public void addSpiderParser(org.zaproxy.zap.spider.parser.SpiderParser parser) {
+        log.debug("Loading custom Spider Parser: {}", parser.getClass().getSimpleName());
+        parser.setSpiderParam(spider.getSpiderParam());
         this.parsers.addFirst(parser);
     }
 }

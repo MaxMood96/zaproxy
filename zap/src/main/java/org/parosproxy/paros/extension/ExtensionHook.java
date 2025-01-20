@@ -35,6 +35,7 @@
 // ZAP: 2019/06/01 Normalise line endings.
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/08/27 Added support for plugable variants
+// ZAP: 2022/06/13 Allow to add HrefTypeInfo.
 package org.parosproxy.paros.extension;
 
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ import org.zaproxy.zap.extension.AddonFilesChangedListener;
 import org.zaproxy.zap.extension.api.ApiImplementor;
 import org.zaproxy.zap.model.ContextDataFactory;
 import org.zaproxy.zap.network.HttpSenderListener;
+import org.zaproxy.zap.view.HrefTypeInfo;
 import org.zaproxy.zap.view.SiteMapListener;
 
 public class ExtensionHook {
@@ -161,6 +163,16 @@ public class ExtensionHook {
      * @see #getVariants()
      */
     private List<Class<? extends Variant>> variants;
+
+    /**
+     * The {@link HrefTypeInfo} added to this extension hook.
+     *
+     * <p>Lazily initialised.
+     *
+     * @see #addHrefType(HrefTypeInfo)
+     * @see #getHrefsTypeInfo()
+     */
+    private List<HrefTypeInfo> hrefsTypeInfo;
 
     private ViewDelegate view = null;
     private CommandLineArgument[] arg = new CommandLineArgument[0];
@@ -329,12 +341,16 @@ public class ExtensionHook {
         return hookView;
     }
 
-    /** @return Returns the model. */
+    /**
+     * @return Returns the model.
+     */
     public Model getModel() {
         return model;
     }
 
-    /** @return Returns the optionsListenerList. */
+    /**
+     * @return Returns the optionsListenerList.
+     */
     public Vector<OptionsChangedListener> getOptionsChangedListenerList() {
         return optionsListenerList;
     }
@@ -343,12 +359,16 @@ public class ExtensionHook {
         return optionsParamSetList;
     }
 
-    /** @return Returns the proxyListenerList. */
+    /**
+     * @return Returns the proxyListenerList.
+     */
     public Vector<ProxyListener> getProxyListenerList() {
         return proxyListenerList;
     }
 
-    /** @return Returns the sessionListenerList. */
+    /**
+     * @return Returns the sessionListenerList.
+     */
     public Vector<SessionChangedListener> getSessionListenerList() {
         return sessionListenerList;
     }
@@ -366,7 +386,9 @@ public class ExtensionHook {
         return persistentConnectionListenerList;
     }
 
-    /** @return Returns the view. */
+    /**
+     * @return Returns the view.
+     */
     public ViewDelegate getView() {
         return view;
     }
@@ -553,5 +575,31 @@ public class ExtensionHook {
             return Collections.emptyList();
         }
         return Collections.unmodifiableList(variants);
+    }
+
+    /**
+     * Adds the given {@link HrefTypeInfo} to the hook.
+     *
+     * @param hrefTypeInfo the {@code HrefTypeInfo}.
+     * @since 2.12.0
+     */
+    public void addHrefType(HrefTypeInfo hrefTypeInfo) {
+        if (hrefsTypeInfo == null) {
+            hrefsTypeInfo = new ArrayList<>(1);
+        }
+        hrefsTypeInfo.add(hrefTypeInfo);
+    }
+
+    /**
+     * Gets the {@link HrefTypeInfo} added to this hook.
+     *
+     * @return an unmodifiable {@code List} containing the added {@code HrefTypeInfo}, never {@code
+     *     null}.
+     */
+    List<HrefTypeInfo> getHrefsTypeInfo() {
+        if (hrefsTypeInfo == null) {
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(hrefsTypeInfo);
     }
 }

@@ -29,6 +29,7 @@ import org.zaproxy.zap.extension.pscan.PluginPassiveScanner;
 import org.zaproxy.zap.model.SessionStructure;
 import org.zaproxy.zap.utils.Stats;
 
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class RegexAutoTagScanner extends PluginPassiveScanner {
 
     public static final String TAG_STATS_PREFIX = "stats.tag.";
@@ -97,6 +98,11 @@ public class RegexAutoTagScanner extends PluginPassiveScanner {
                 scanner.responseHeaderRegex,
                 scanner.responseBodyRegex,
                 scanner.isEnabled());
+    }
+
+    @Override
+    public RegexAutoTagScanner copy() {
+        return new RegexAutoTagScanner(this);
     }
 
     public Pattern getRequestUrlPattern() {
@@ -325,7 +331,7 @@ public class RegexAutoTagScanner extends PluginPassiveScanner {
             if (matcher.groupCount() > 0) {
                 tag = matcher.pattern().matcher(matcher.group()).replaceFirst(tag);
             }
-            addTag(tag);
+            addHistoryTag(tag);
         }
 
         try {

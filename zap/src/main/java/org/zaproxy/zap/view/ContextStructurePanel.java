@@ -43,6 +43,7 @@ import org.zaproxy.zap.model.StandardParameterParser;
 import org.zaproxy.zap.model.StructuralNodeModifier;
 import org.zaproxy.zap.utils.ZapTextField;
 
+@SuppressWarnings("serial")
 public class ContextStructurePanel extends AbstractContextPropertiesPanel {
 
     private static final String PANEL_NAME = Constant.messages.getString("context.struct.title");
@@ -401,7 +402,7 @@ public class ContextStructurePanel extends AbstractContextPropertiesPanel {
                 }
                 name = ddn.getName();
                 ro = true;
-                this.addReadOnlyField(FIELD_NAME, getModVal(type), false);
+                this.addReadOnlyField(FIELD_TYPE, getModVal(type), false);
             } else {
                 this.addComboField(
                         FIELD_TYPE,

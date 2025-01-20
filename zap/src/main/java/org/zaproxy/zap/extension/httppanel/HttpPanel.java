@@ -48,6 +48,7 @@ import javax.swing.text.JTextComponent;
 import org.apache.commons.configuration.FileConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jdesktop.swingx.WrapLayout;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.extension.AbstractPanel;
 import org.parosproxy.paros.extension.edit.ExtensionEdit;
@@ -58,9 +59,9 @@ import org.zaproxy.zap.extension.httppanel.view.HttpPanelDefaultViewSelector;
 import org.zaproxy.zap.extension.httppanel.view.HttpPanelView;
 import org.zaproxy.zap.extension.search.SearchMatch;
 import org.zaproxy.zap.extension.search.SearchableHttpPanelComponent;
-import org.zaproxy.zap.extension.tab.Tab;
 
-public abstract class HttpPanel extends AbstractPanel implements Tab {
+@SuppressWarnings("serial")
+public abstract class HttpPanel extends AbstractPanel {
 
     public enum OptionsLocation {
         BEGIN,
@@ -70,7 +71,7 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
 
     private static final long serialVersionUID = 5221591643257366570L;
 
-    private static final Logger logger = LogManager.getLogger(HttpPanel.class);
+    private static final Logger LOGGER = LogManager.getLogger(HttpPanel.class);
 
     private static final String NO_SUITABLE_COMPONENT_FOUND_LABEL =
             Constant.messages.getString("http.panel.noSuitableComponentFound");
@@ -162,25 +163,12 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
 
         endAllOptions = new JPanel();
 
-        JPanel panel1 = new JPanel(new BorderLayout(0, 0));
-
-        JPanel panelFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-
-        panelFlow.add(allOptions);
-        panelFlow.add(componentOptions);
-        panelFlow.add(toolBarComponents);
-        panelFlow.add(moreOptionsComponent);
-        panelFlow.add(toolBarMoreOptions);
-        panel1.add(panelFlow, BorderLayout.WEST);
-
-        panelFlow = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        panelFlow.add(endAllOptions);
-
-        panel1.add(panelFlow, BorderLayout.EAST);
-
-        panelHeader.add(panel1, BorderLayout.NORTH);
-
-        // getPanelContent().add(new EmptyComponent(), "");
+        panelHeader.add(allOptions);
+        panelHeader.add(componentOptions);
+        panelHeader.add(toolBarComponents);
+        panelHeader.add(moreOptionsComponent);
+        panelHeader.add(toolBarMoreOptions);
+        panelHeader.add(endAllOptions);
 
         initComponents();
 
@@ -196,7 +184,7 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
 
     private JPanel getPanelHeader() {
         if (panelHeader == null) {
-            panelHeader = new JPanel(new BorderLayout());
+            panelHeader = new JPanel(new WrapLayout(FlowLayout.LEADING, 0, 0));
         }
         return panelHeader;
     }
@@ -249,7 +237,7 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
             }
         }
 
-        if (enabledComponents.size() == 0) {
+        if (enabledComponents.isEmpty()) {
             currentComponent = null;
             switchEmptyComponent();
             notifyDisplayedMessageChangedListeners(oldMessage, message);
@@ -370,7 +358,7 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
         HttpPanelComponentInterface newComponent = components.get(name);
 
         if (newComponent == null) {
-            logger.info("No component found with name: " + name);
+            LOGGER.info("No component found with name: {}", name);
             return;
         }
 
@@ -513,7 +501,7 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
     private void disableComponent(HttpPanelComponentInterface component) {
         toolBarComponents.remove(component.getButton());
         enabledComponents.remove(component);
-        if (enabledComponents.size() == 0) {
+        if (enabledComponents.isEmpty()) {
             toolBarComponents.removeAll();
         }
     }
@@ -600,6 +588,11 @@ public abstract class HttpPanel extends AbstractPanel implements Tab {
             Iterator<HttpPanelComponentInterface> it = components.values().iterator();
             while (it.hasNext()) {
                 it.next().loadConfig(fileConfiguration);
+            }
+
+            if (savedLastSelectedComponentName != null
+                    && components.containsKey(savedLastSelectedComponentName)) {
+                switchComponent(savedLastSelectedComponentName);
             }
         }
     }

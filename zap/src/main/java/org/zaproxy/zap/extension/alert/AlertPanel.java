@@ -63,6 +63,7 @@ import org.parosproxy.paros.model.HistoryReference;
 import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.view.View;
+import org.parosproxy.paros.view.WorkbenchPanel.Layout;
 import org.zaproxy.zap.extension.httppanel.HttpPanel;
 import org.zaproxy.zap.extension.search.SearchMatch;
 import org.zaproxy.zap.utils.DisplayUtils;
@@ -72,12 +73,13 @@ import org.zaproxy.zap.view.ZapToggleButton;
 import org.zaproxy.zap.view.messagecontainer.http.DefaultSelectableHistoryReferencesContainer;
 import org.zaproxy.zap.view.messagecontainer.http.SelectableHistoryReferencesContainer;
 
+@SuppressWarnings("serial")
 public class AlertPanel extends AbstractPanel {
 
     public static final String ALERT_TREE_PANEL_NAME = "treeAlert";
 
     private static final long serialVersionUID = 1L;
-    private static final Logger logger = LogManager.getLogger(AlertPanel.class);
+    private static final Logger LOGGER = LogManager.getLogger(AlertPanel.class);
 
     private ViewDelegate view = null;
     private JTree treeAlert = null;
@@ -638,7 +640,9 @@ public class AlertPanel extends AbstractPanel {
         return paneScroll;
     }
 
-    /** @return Returns the view. */
+    /**
+     * @return Returns the view.
+     */
     private ViewDelegate getView() {
         return view;
     }
@@ -657,7 +661,7 @@ public class AlertPanel extends AbstractPanel {
                         }
                     });
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 
@@ -690,6 +694,7 @@ public class AlertPanel extends AbstractPanel {
             SearchMatch sm = null;
             int start;
 
+            HttpPanel focusPanel = null;
             // Highlight the 'attack' / evidence
             if (highlight == null || highlight.length() == 0) {
                 // ignore
@@ -701,7 +706,7 @@ public class AlertPanel extends AbstractPanel {
                                 start,
                                 start + highlight.length());
                 responsePanel.highlightHeader(sm);
-                responsePanel.setTabFocus();
+                focusPanel = responsePanel;
 
             } else if ((start = msg.getResponseBody().toString().indexOf(highlight)) >= 0) {
                 sm =
@@ -711,7 +716,7 @@ public class AlertPanel extends AbstractPanel {
                                 start,
                                 start + highlight.length());
                 responsePanel.highlightBody(sm);
-                responsePanel.setTabFocus();
+                focusPanel = responsePanel;
 
             } else if ((start = msg.getRequestHeader().toString().indexOf(highlight)) >= 0) {
                 sm =
@@ -721,7 +726,7 @@ public class AlertPanel extends AbstractPanel {
                                 start,
                                 start + highlight.length());
                 requestPanel.highlightHeader(sm);
-                requestPanel.setTabFocus();
+                focusPanel = requestPanel;
 
             } else if ((start = msg.getRequestBody().toString().indexOf(highlight)) >= 0) {
                 sm =
@@ -731,7 +736,12 @@ public class AlertPanel extends AbstractPanel {
                                 start,
                                 start + highlight.length());
                 requestPanel.highlightBody(sm);
-                requestPanel.setTabFocus();
+                focusPanel = requestPanel;
+            }
+
+            if (focusPanel != null
+                    && getView().getMainFrame().getWorkbenchLayout() != Layout.FULL) {
+                focusPanel.setTabFocus();
             }
         }
     }
@@ -768,8 +778,7 @@ public class AlertPanel extends AbstractPanel {
         if (editButton == null) {
             editButton = new JButton();
             editButton.setToolTipText(Constant.messages.getString("alert.edit.button.tooltip"));
-            editButton.setIcon(
-                    new ImageIcon(AlertPanel.class.getResource("/resource/icon/16/018.png")));
+            editButton.setIcon(getScaledIcon("/resource/icon/16/018.png"));
 
             editButton.addActionListener(
                     new ActionListener() {
@@ -787,9 +796,7 @@ public class AlertPanel extends AbstractPanel {
             deleteAllButton = new JButton();
             deleteAllButton.setToolTipText(
                     Constant.messages.getString("alert.deleteall.button.tooltip"));
-            deleteAllButton.setIcon(
-                    DisplayUtils.getScaledIcon(
-                            AlertPanel.class.getResource("/resource/icon/fugue/broom-alerts.png")));
+            deleteAllButton.setIcon(getScaledIcon("/resource/icon/fugue/broom-alerts.png"));
 
             deleteAllButton.addActionListener(
                     e -> {
@@ -804,5 +811,9 @@ public class AlertPanel extends AbstractPanel {
                     });
         }
         return deleteAllButton;
+    }
+
+    private static ImageIcon getScaledIcon(String path) {
+        return DisplayUtils.getScaledIcon(AlertPanel.class.getResource(path));
     }
 }

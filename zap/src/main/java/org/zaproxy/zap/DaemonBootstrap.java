@@ -25,8 +25,6 @@ import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.CommandLine;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.control.Control;
-import org.parosproxy.paros.core.proxy.ProxyParam;
-import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.view.View;
 
 /**
@@ -36,7 +34,7 @@ import org.parosproxy.paros.view.View;
  */
 class DaemonBootstrap extends HeadlessBootstrap {
 
-    private final Logger logger = LogManager.getLogger(DaemonBootstrap.class);
+    private static final Logger LOGGER = LogManager.getLogger(DaemonBootstrap.class);
 
     public DaemonBootstrap(CommandLine cmdLineArgs) {
         super(cmdLineArgs);
@@ -51,7 +49,7 @@ class DaemonBootstrap extends HeadlessBootstrap {
 
         View.setDaemon(true); // Prevents the View ever being initialised
 
-        logger.info(getStartingMessage());
+        LOGGER.info(getStartingMessage());
 
         try {
             initModel();
@@ -61,7 +59,7 @@ class DaemonBootstrap extends HeadlessBootstrap {
                 System.out.println(e.getLocalizedMessage());
             }
 
-            logger.fatal(e.getMessage(), e);
+            LOGGER.fatal(e.getMessage(), e);
             return 1;
         }
 
@@ -72,7 +70,13 @@ class DaemonBootstrap extends HeadlessBootstrap {
 
                             @Override
                             public void run() {
-                                Control control = initControl();
+                                Control control;
+                                try {
+                                    control = initControl();
+                                } catch (IllegalStateException e) {
+                                    System.err.println("Failed to start ZAP. " + e.getMessage());
+                                    return;
+                                }
 
                                 warnAddOnsAndExtensionsNoLongerRunnable();
 
@@ -80,33 +84,20 @@ class DaemonBootstrap extends HeadlessBootstrap {
                                     return;
                                 }
 
+                                HeadlessBootstrap.checkForUpdates();
+
                                 try {
                                     // Allow extensions to pick up command line args in daemon mode
                                     control.getExtensionLoader().hookCommandLineListener(getArgs());
+                                    recordStartStats();
                                     control.runCommandLine();
-                                } catch (Exception e) {
-                                    logger.error(e.getMessage(), e);
-                                }
-
-                                if (!control.getProxy().startServer()) {
-                                    // Failed to listen on the specified proxy, no point in
-                                    // continuing (an error will already have been shown)
+                                } catch (ShutdownRequestedException e) {
+                                    control.shutdown(false);
+                                    LOGGER.info("{} terminated.", Constant.PROGRAM_TITLE);
                                     return;
+                                } catch (Exception e) {
+                                    LOGGER.error(e.getMessage(), e);
                                 }
-
-                                ProxyParam proxyParams =
-                                        Model.getSingleton().getOptionsParam().getProxyParam();
-                                String message =
-                                        "ZAP is now listening on "
-                                                + proxyParams.getRawProxyIP()
-                                                + ":"
-                                                + proxyParams.getProxyPort();
-                                logger.info(message);
-                                if (getArgs().isNoStdOutLog()) {
-                                    System.out.println(message);
-                                }
-
-                                HeadlessBootstrap.checkForUpdates();
 
                                 // This is the only non-daemon thread, so should keep running
                                 // CoreAPI.handleApiAction uses System.exit to shutdown
@@ -129,6 +120,6 @@ class DaemonBootstrap extends HeadlessBootstrap {
 
     @Override
     protected Logger getLogger() {
-        return logger;
+        return LOGGER;
     }
 }

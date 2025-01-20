@@ -22,7 +22,7 @@ package org.zaproxy.zap.spider.parser;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.htmlparser.jericho.Source;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.lang3.StringEscapeUtils;
 import org.parosproxy.paros.network.HttpMessage;
 
 /**
@@ -30,7 +30,10 @@ import org.parosproxy.paros.network.HttpMessage;
  *
  * <p>It's derived from the SpiderTextParser. Even if the format of the file is XML we will process
  * it as a simple text file
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
  */
+@Deprecated
 public class SpiderODataAtomParser extends SpiderParser {
 
     /** The Constant urlPattern defining the pattern for an url. */
@@ -39,6 +42,14 @@ public class SpiderODataAtomParser extends SpiderParser {
     /** the Constant patternBase defines the pattern for a base url */
     private static final Pattern patternBase =
             Pattern.compile("base=\"(http(s?)://[^\\x00-\\x1f\"'\\s<>#]+)\"");
+
+    public SpiderODataAtomParser() {
+        this(null);
+    }
+
+    public SpiderODataAtomParser(org.zaproxy.zap.spider.SpiderParam param) {
+        super(param);
+    }
 
     @Override
     public boolean parseResource(HttpMessage message, Source source, int depth) {

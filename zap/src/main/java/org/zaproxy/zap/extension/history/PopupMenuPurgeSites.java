@@ -20,13 +20,14 @@
 package org.zaproxy.zap.extension.history;
 
 import java.util.List;
+import javax.swing.JCheckBox;
 import javax.swing.JOptionPane;
+import org.apache.commons.configuration.FileConfiguration;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.control.Control;
 import org.parosproxy.paros.extension.history.ExtensionHistory;
 import org.parosproxy.paros.model.HistoryReference;
 import org.parosproxy.paros.model.Model;
-import org.parosproxy.paros.model.SiteMap;
 import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.view.messagecontainer.http.HttpMessageContainer;
@@ -35,6 +36,7 @@ import org.zaproxy.zap.view.popup.PopupMenuItemSiteNodeContainer;
 public class PopupMenuPurgeSites extends PopupMenuItemSiteNodeContainer {
 
     private static final long serialVersionUID = 4827464631678110752L;
+    private static final String REMOVE_CONFIRMATION_KEY = "view.deleteconfirmation.sites";
 
     public PopupMenuPurgeSites() {
         super(Constant.messages.getString("sites.purge.popup"), true);
@@ -60,15 +62,44 @@ public class PopupMenuPurgeSites extends PopupMenuItemSiteNodeContainer {
 
     @Override
     public void performHistoryReferenceActions(List<HistoryReference> hrefs) {
-        if (hrefs.size() > 0) {
+        if (hrefs.isEmpty()) {
+            return;
+        }
+
+        FileConfiguration config = Model.getSingleton().getOptionsParam().getConfig();
+        boolean confirmRemoval = config.getBoolean(REMOVE_CONFIRMATION_KEY, true);
+
+        if (confirmRemoval) {
+            JCheckBox removeWithoutConfirmationCheckBox =
+                    new JCheckBox(Constant.messages.getString("sites.purge.confirm.message"));
+            Object[] messages = {
+                Constant.messages.getString("sites.purge.warning"),
+                " ",
+                removeWithoutConfirmationCheckBox
+            };
             int result =
-                    View.getSingleton()
-                            .showConfirmDialog(Constant.messages.getString("sites.purge.warning"));
+                    JOptionPane.showOptionDialog(
+                            View.getSingleton().getMainFrame(),
+                            messages,
+                            Constant.messages.getString("sites.purge.title"),
+                            JOptionPane.OK_CANCEL_OPTION,
+                            JOptionPane.QUESTION_MESSAGE,
+                            null,
+                            new String[] {
+                                Constant.messages.getString("sites.purge.confirm"),
+                                Constant.messages.getString("sites.purge.cancel")
+                            },
+                            null);
             if (result != JOptionPane.YES_OPTION) {
                 return;
             }
+            Model.getSingleton()
+                    .getOptionsParam()
+                    .getConfig()
+                    .setProperty(
+                            REMOVE_CONFIRMATION_KEY,
+                            !removeWithoutConfirmationCheckBox.isSelected());
         }
-
         super.performHistoryReferenceActions(hrefs);
     }
 
@@ -79,21 +110,6 @@ public class PopupMenuPurgeSites extends PopupMenuItemSiteNodeContainer {
 
         if (extHistory != null) {
             extHistory.purge(Model.getSingleton().getSession().getSiteTree(), sn);
-        }
-    }
-
-    /**
-     * @deprecated As of release 2.5.0, replaced by {@link
-     *     org.parosproxy.paros.extension.history.ExtensionHistory#purge(
-     *     org.parosproxy.paros.model.SiteMap, org.parosproxy.paros.model.SiteNode)}
-     */
-    @Deprecated
-    public static void purge(SiteMap map, SiteNode node) {
-        ExtensionHistory extHistory =
-                Control.getSingleton().getExtensionLoader().getExtension(ExtensionHistory.class);
-
-        if (extHistory != null) {
-            extHistory.purge(map, node);
         }
     }
 

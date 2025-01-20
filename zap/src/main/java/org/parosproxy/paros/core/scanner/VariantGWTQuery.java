@@ -37,6 +37,13 @@ public class VariantGWTQuery extends VariantAbstractRPCQuery {
     public static final int RPC_SEPARATOR_CHAR = '|';
     public static final int FLAG_RPC_TOKEN_INCLUDED = 0x2;
 
+    private static final String SHORT_NAME = "gwt";
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
+
     /**
      * @param contentType
      * @return
@@ -46,7 +53,9 @@ public class VariantGWTQuery extends VariantAbstractRPCQuery {
         return contentType.startsWith(GWT_RPC_CONTENT_TYPE);
     }
 
-    /** @param content */
+    /**
+     * @param content
+     */
     @Override
     public void parseContent(String content) {
         GWTStringTokenizer st = new GWTStringTokenizer(content, RPC_SEPARATOR_CHAR);

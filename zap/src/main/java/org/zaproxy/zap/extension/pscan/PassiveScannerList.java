@@ -26,18 +26,22 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner;
 
+@SuppressWarnings("removal")
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class PassiveScannerList {
 
-    private static final Logger logger = LogManager.getLogger(PassiveScannerList.class);
+    private static final Logger LOGGER = LogManager.getLogger(PassiveScannerList.class);
 
     private List<PassiveScanner> passiveScanners = new CopyOnWriteArrayList<>();
     private Set<String> scannerNames = new HashSet<>();
 
     protected boolean add(PassiveScanner scanner) {
         if (scannerNames.contains(scanner.getName())) {
-            // Prevent duplicates, log error?
+            LOGGER.warn(
+                    "A scan rule with the name \"{}\" already exists. The rule \"{}\" will not be loaded.",
+                    scanner.getName(),
+                    scanner.getClass().getName());
             return false;
         }
         passiveScanners.add(scanner);
@@ -50,12 +54,13 @@ public class PassiveScannerList {
         return this.passiveScanners;
     }
 
-    public void setAutoTagScanners(List<RegexAutoTagScanner> autoTagScanners) {
+    public void setAutoTagScanners(
+            List<org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner> autoTagScanners) {
         List<PassiveScanner> tempScanners =
                 new ArrayList<>(passiveScanners.size() + autoTagScanners.size());
 
         for (PassiveScanner scanner : passiveScanners) {
-            if (scanner instanceof RegexAutoTagScanner) {
+            if (scanner instanceof org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner) {
                 this.scannerNames.remove(scanner.getName());
             } else {
                 tempScanners.add(scanner);
@@ -64,7 +69,7 @@ public class PassiveScannerList {
 
         for (PassiveScanner scanner : autoTagScanners) {
             if (scannerNames.contains(scanner.getName())) {
-                logger.error("Duplicate passive scanner name: " + scanner.getName());
+                LOGGER.error("Duplicate passive scan rule name: {}", scanner.getName());
             } else {
                 tempScanners.add(scanner);
                 scannerNames.add(scanner.getName());

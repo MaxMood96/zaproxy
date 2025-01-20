@@ -41,6 +41,10 @@ import org.parosproxy.paros.model.HistoryReference;
 import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.network.HttpMalformedHeaderException;
 import org.parosproxy.paros.network.HttpMessage;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Text;
+import org.zaproxy.zap.db.TableAlertTag;
 import org.zaproxy.zap.extension.api.ApiAction;
 import org.zaproxy.zap.extension.api.ApiException;
 import org.zaproxy.zap.extension.api.ApiImplementor;
@@ -49,13 +53,18 @@ import org.zaproxy.zap.extension.api.ApiResponseElement;
 import org.zaproxy.zap.extension.api.ApiResponseList;
 import org.zaproxy.zap.extension.api.ApiResponseSet;
 import org.zaproxy.zap.extension.api.ApiView;
+import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.utils.ApiUtils;
+import org.zaproxy.zap.utils.XMLStringUtil;
 
 public class AlertAPI extends ApiImplementor {
 
     public static final String PREFIX = "alert";
 
+    private static final Logger LOGGER = LogManager.getLogger(AlertAPI.class);
+
     private static final String ACTION_DELETE_ALL_ALERTS = "deleteAllAlerts";
+    private static final String ACTION_DELETE_ALERTS = "deleteAlerts";
     private static final String ACTION_DELETE_ALERT = "deleteAlert";
     private static final String ACTION_UPDATE_ALERT = "updateAlert";
     private static final String ACTION_ADD_ALERT = "addAlert";
@@ -71,6 +80,7 @@ public class AlertAPI extends ApiImplementor {
 
     private static final String PARAM_BASE_URL = "baseurl";
     private static final String PARAM_COUNT = "count";
+    private static final String PARAM_CONTEXT_NAME = "contextName";
     private static final String PARAM_URL = "url";
     private static final String PARAM_ID = "id";
     private static final String PARAM_RECURSE = "recurse";
@@ -99,6 +109,7 @@ public class AlertAPI extends ApiImplementor {
      * @see #processAlerts(String, int, int, int, Processor)
      */
     private static final int NO_RISK_ID = -1;
+
     /**
      * The constant that indicates that no confidence ID is being provided.
      *
@@ -106,8 +117,7 @@ public class AlertAPI extends ApiImplementor {
      */
     private static final int NO_CONFIDENCE_ID = -1;
 
-    private ExtensionAlert extension = null;
-    private static final Logger logger = LogManager.getLogger(AlertAPI.class);
+    private ExtensionAlert extension;
 
     public AlertAPI(ExtensionAlert ext) {
         this.extension = ext;
@@ -116,7 +126,9 @@ public class AlertAPI extends ApiImplementor {
                 new ApiView(
                         VIEW_ALERTS,
                         null,
-                        new String[] {PARAM_BASE_URL, PARAM_START, PARAM_COUNT, PARAM_RISK}));
+                        new String[] {
+                            PARAM_BASE_URL, PARAM_START, PARAM_COUNT, PARAM_RISK, PARAM_CONTEXT_NAME
+                        }));
         this.addApiView(new ApiView(VIEW_ALERTS_SUMMARY, null, new String[] {PARAM_BASE_URL}));
         this.addApiView(
                 new ApiView(
@@ -128,6 +140,11 @@ public class AlertAPI extends ApiImplementor {
                         VIEW_ALERT_COUNTS_BY_RISK, null, new String[] {PARAM_URL, PARAM_RECURSE}));
 
         this.addApiAction(new ApiAction(ACTION_DELETE_ALL_ALERTS));
+        this.addApiAction(
+                new ApiAction(
+                        ACTION_DELETE_ALERTS,
+                        null,
+                        new String[] {PARAM_CONTEXT_NAME, PARAM_BASE_URL, PARAM_RISK}));
         this.addApiAction(new ApiAction(ACTION_DELETE_ALERT, new String[] {PARAM_ID}));
 
         this.addApiAction(
@@ -189,29 +206,34 @@ public class AlertAPI extends ApiImplementor {
         ApiResponse result = null;
         if (VIEW_ALERT.equals(name)) {
             TableAlert tableAlert = Model.getSingleton().getDb().getTableAlert();
+            TableAlertTag tableAlertTag = Model.getSingleton().getDb().getTableAlertTag();
             RecordAlert recordAlert;
+            Map<String, String> alertTags;
             try {
                 recordAlert = tableAlert.read(this.getParam(params, PARAM_ID, -1));
+                alertTags = tableAlertTag.getTagsByAlertId(this.getParam(params, PARAM_ID, -1));
             } catch (DatabaseException e) {
-                logger.error("Failed to read the alert from the session:", e);
+                LOGGER.error("Failed to read the alert from the session:", e);
                 throw new ApiException(ApiException.Type.INTERNAL_ERROR);
             }
             if (recordAlert == null) {
                 throw new ApiException(ApiException.Type.DOES_NOT_EXIST);
             }
-            result = new ApiResponseElement(alertToSet(new Alert(recordAlert)));
+            Alert alert = new Alert(recordAlert);
+            alert.setTags(alertTags);
+            result = new ApiResponseElement(alertToSet(alert));
         } else if (VIEW_ALERTS.equals(name)) {
             final ApiResponseList resultList = new ApiResponseList(name);
+            String contextName = this.getParam(params, PARAM_CONTEXT_NAME, "");
+            Context context = contextName.isEmpty() ? null : ApiUtils.getContextByName(contextName);
 
             processAlerts(
                     this.getParam(params, PARAM_BASE_URL, (String) null),
                     this.getParam(params, PARAM_START, -1),
                     this.getParam(params, PARAM_COUNT, -1),
                     getRiskId(params),
-                    new Processor<Alert>() {
-
-                        @Override
-                        public void process(Alert alert) {
+                    (Alert alert) -> {
+                        if (context == null || context.isInContext(alert.getUri())) {
                             resultList.addItem(alertToSet(alert));
                         }
                     });
@@ -228,14 +250,7 @@ public class AlertAPI extends ApiImplementor {
             result = new ApiResponseElement(name, Integer.toString(counter.getCount()));
         } else if (VIEW_ALERTS_SUMMARY.equals(name)) {
             final int[] riskSummary = {0, 0, 0, 0};
-            Processor<Alert> counter =
-                    new Processor<Alert>() {
-
-                        @Override
-                        public void process(Alert alert) {
-                            riskSummary[alert.getRisk()]++;
-                        }
-                    };
+            Processor<Alert> counter = (Alert alert) -> riskSummary[alert.getRisk()]++;
             processAlerts(
                     this.getParam(params, PARAM_BASE_URL, (String) null),
                     -1,
@@ -248,7 +263,7 @@ public class AlertAPI extends ApiImplementor {
                 alertData.put(Alert.MSG_RISK[i], riskSummary[i]);
             }
             result =
-                    new ApiResponseSet<Object>("risk", alertData) {
+                    new ApiResponseSet<>("risk", alertData) {
 
                         @Override
                         public JSON toJSON() {
@@ -264,7 +279,7 @@ public class AlertAPI extends ApiImplementor {
             result = resultList;
 
             // 0 (RISK_INFO) -> 3 (RISK_HIGH)
-            ApiResponseList[] list = new ApiResponseList[4];
+            ApiResponseList[] list = new ApiResponseList[Alert.NUMBER_RISKS];
             for (int i = 0; i < list.length; i++) {
                 list[i] = new ApiResponseList(Alert.MSG_RISK[i]);
             }
@@ -277,7 +292,7 @@ public class AlertAPI extends ApiImplementor {
                 Alert alert = child.getUserObject();
 
                 ApiResponseList alertList = filterAlertInstances(child, url, recurse);
-                if (alertList.getItems().size() > 0) {
+                if (!alertList.getItems().isEmpty()) {
                     list[alert.getRisk()].addItem(alertList);
                 }
             }
@@ -287,7 +302,8 @@ public class AlertAPI extends ApiImplementor {
             boolean recurse = this.getParam(params, PARAM_RECURSE, false);
 
             // 0 (RISK_INFO) -> 3 (RISK_HIGH)
-            int[] counts = new int[] {0, 0, 0, 0};
+            int[] riskCounts = new int[] {0, 0, 0, 0};
+            int falsePositiveCount = 0;
 
             AlertTreeModel model = extension.getTreeModel();
             AlertNode root = (AlertNode) model.getRoot();
@@ -297,15 +313,20 @@ public class AlertAPI extends ApiImplementor {
                 Alert alert = child.getUserObject();
 
                 ApiResponseList alertList = filterAlertInstances(child, url, recurse);
-                if (alertList.getItems().size() > 0) {
-                    counts[alert.getRisk()] += 1;
+                if (!alertList.getItems().isEmpty()) {
+                    if (alert.getConfidence() == Alert.CONFIDENCE_FALSE_POSITIVE) {
+                        falsePositiveCount += 1;
+                    } else {
+                        riskCounts[alert.getRisk()] += 1;
+                    }
                 }
             }
             Map<String, Integer> map = new HashMap<>();
-            map.put(Alert.MSG_RISK[Alert.RISK_HIGH], counts[Alert.RISK_HIGH]);
-            map.put(Alert.MSG_RISK[Alert.RISK_MEDIUM], counts[Alert.RISK_MEDIUM]);
-            map.put(Alert.MSG_RISK[Alert.RISK_LOW], counts[Alert.RISK_LOW]);
-            map.put(Alert.MSG_RISK[Alert.RISK_INFO], counts[Alert.RISK_INFO]);
+            map.put(Alert.MSG_RISK[Alert.RISK_HIGH], riskCounts[Alert.RISK_HIGH]);
+            map.put(Alert.MSG_RISK[Alert.RISK_MEDIUM], riskCounts[Alert.RISK_MEDIUM]);
+            map.put(Alert.MSG_RISK[Alert.RISK_LOW], riskCounts[Alert.RISK_LOW]);
+            map.put(Alert.MSG_RISK[Alert.RISK_INFO], riskCounts[Alert.RISK_INFO]);
+            map.put(Alert.MSG_CONFIDENCE[Alert.CONFIDENCE_FALSE_POSITIVE], falsePositiveCount);
             result = new ApiResponseSet<>(name, map);
         } else {
             throw new ApiException(ApiException.Type.BAD_VIEW);
@@ -322,6 +343,26 @@ public class AlertAPI extends ApiImplementor {
             extension.deleteAlert(getAlertFromDb(alertId));
         } else if (ACTION_DELETE_ALL_ALERTS.equals(name)) {
             extension.deleteAllAlerts();
+        } else if (ACTION_DELETE_ALERTS.equals(name)) {
+            String contextName = this.getParam(params, PARAM_CONTEXT_NAME, "");
+            Context context = contextName.isEmpty() ? null : ApiUtils.getContextByName(contextName);
+            final int[] count = {0};
+
+            Processor<Alert> counter =
+                    (Alert alert) -> {
+                        if (context == null || context.isInContext(alert.getUri())) {
+                            extension.deleteAlert(alert);
+                            count[0]++;
+                        }
+                    };
+
+            processAlerts(
+                    this.getParam(params, PARAM_BASE_URL, (String) null),
+                    -1,
+                    -1,
+                    getRiskId(params),
+                    counter);
+            return new ApiResponseElement(ACTION_DELETE_ALERTS, String.valueOf(count[0]));
         } else if (ACTION_UPDATE_ALERT.equals(name)) {
             int alertId = ApiUtils.getIntParam(params, PARAM_ALERT_ID);
             String alertName = params.getString(PARAM_ALERT_NAME);
@@ -401,7 +442,8 @@ public class AlertAPI extends ApiImplementor {
         return ApiResponseElement.OK;
     }
 
-    private ApiResponseList filterAlertInstances(AlertNode alertNode, String url, boolean recurse) {
+    private static ApiResponseList filterAlertInstances(
+            AlertNode alertNode, String url, boolean recurse) {
         ApiResponseList alertList = new ApiResponseList(alertNode.getUserObject().getName());
         Enumeration<?> enumAlertInsts = alertNode.children();
         while (enumAlertInsts.hasMoreElements()) {
@@ -426,12 +468,13 @@ public class AlertAPI extends ApiImplementor {
         return alertList;
     }
 
-    private void processAlerts(
+    private static void processAlerts(
             String baseUrl, int start, int count, int riskId, Processor<Alert> processor)
             throws ApiException {
         List<Alert> alerts = new ArrayList<>();
         try {
             TableAlert tableAlert = Model.getSingleton().getDb().getTableAlert();
+            TableAlertTag tableAlertTag = Model.getSingleton().getDb().getTableAlertTag();
             // TODO this doesn't work, but should be used when its fixed :/
             // Vector<Integer> v =
             // tableAlert.getAlertListBySession(Model.getSingleton().getSession().getSessionId());
@@ -458,6 +501,7 @@ public class AlertAPI extends ApiImplementor {
                     if (!pcc.hasPageStarted()) {
                         continue;
                     }
+                    alert.setTags(tableAlertTag.getTagsByAlertId(alertId));
                     processor.process(alert);
 
                     if (pcc.hasPageEnded()) {
@@ -466,13 +510,13 @@ public class AlertAPI extends ApiImplementor {
                 }
             }
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             throw new ApiException(ApiException.Type.INTERNAL_ERROR);
         }
     }
 
-    private ApiResponseSet<String> alertToSet(Alert alert) {
-        Map<String, String> map = new HashMap<>();
+    private static ApiResponseSet<Object> alertToSet(Alert alert) {
+        Map<String, Object> map = new HashMap<>();
         map.put("id", String.valueOf(alert.getAlertId()));
         map.put("pluginId", String.valueOf(alert.getPluginId()));
         map.put("alertRef", alert.getAlertRef());
@@ -490,21 +534,19 @@ public class AlertAPI extends ApiImplementor {
         map.put("param", alert.getParam());
         map.put("attack", alert.getAttack());
         map.put("evidence", alert.getEvidence());
+        map.put("inputVector", alert.getInputVector());
         map.put("reference", alert.getReference());
         map.put("cweid", String.valueOf(alert.getCweId()));
         map.put("wascid", String.valueOf(alert.getWascId()));
         map.put("sourceid", String.valueOf(alert.getSource().getId()));
         map.put("solution", alert.getSolution());
-        map.put(
-                "messageId",
-                (alert.getHistoryRef() != null)
-                        ? String.valueOf(alert.getHistoryRef().getHistoryId())
-                        : "");
-
-        return new ApiResponseSet<>("alert", map);
+        map.put("messageId", String.valueOf(alert.getHistoryId()));
+        map.put("sourceMessageId", alert.getSourceHistoryId());
+        map.put("tags", alert.getTags());
+        return new CustomApiResponseSet<>("alert", map);
     }
 
-    private ApiResponseSet<String> alertSummaryToSet(Alert alert) {
+    private static ApiResponseSet<String> alertSummaryToSet(Alert alert) {
         Map<String, String> map = new HashMap<>();
         map.put("id", String.valueOf(alert.getAlertId()));
         map.put("name", alert.getName());
@@ -585,7 +627,7 @@ public class AlertAPI extends ApiImplementor {
         return confidenceId;
     }
 
-    private List<Integer> getAlertIds(String alertIds) throws ApiException {
+    private static List<Integer> getAlertIds(String alertIds) throws ApiException {
         List<Integer> idsList = new ArrayList<>();
         StringTokenizer tokenizer = new StringTokenizer(alertIds, ",");
         while (tokenizer.hasMoreTokens()) {
@@ -602,12 +644,12 @@ public class AlertAPI extends ApiImplementor {
         return idsList;
     }
 
-    private Alert getAlertFromDb(int alertId) throws ApiException {
+    private static Alert getAlertFromDb(int alertId) throws ApiException {
         RecordAlert recAlert;
         try {
             recAlert = Model.getSingleton().getDb().getTableAlert().read(alertId);
         } catch (DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             throw new ApiException(ApiException.Type.INTERNAL_ERROR, e);
         }
 
@@ -621,7 +663,7 @@ public class AlertAPI extends ApiImplementor {
         try {
             extension.updateAlert(updatedAlert);
         } catch (HttpMalformedHeaderException | DatabaseException e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             throw new ApiException(ApiException.Type.INTERNAL_ERROR, e);
         }
     }
@@ -643,7 +685,7 @@ public class AlertAPI extends ApiImplementor {
             if (e.getMessage() == null) {
                 throw new ApiException(ApiException.Type.DOES_NOT_EXIST, PARAM_MESSAGE_ID);
             }
-            logger.error("Failed to read the history record:", e);
+            LOGGER.error("Failed to read the history record:", e);
             throw new ApiException(ApiException.Type.INTERNAL_ERROR, e);
         }
     }
@@ -693,7 +735,7 @@ public class AlertAPI extends ApiImplementor {
 
             if (count > 0) {
                 hasEnd = true;
-                finalRecord = !pageStarted ? start + count - 1 : count;
+                finalRecord = !pageStarted ? start + (count - 1) : count;
             } else {
                 hasEnd = false;
                 finalRecord = 0;
@@ -719,6 +761,47 @@ public class AlertAPI extends ApiImplementor {
 
         public boolean hasPageEnded() {
             return pageEnded;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static class CustomApiResponseSet<T> extends ApiResponseSet<T> {
+        public CustomApiResponseSet(String name, Map<String, T> values) {
+            super(name, values);
+        }
+
+        @Override
+        public void toXML(Document doc, Element parent) {
+            parent.setAttribute("type", "set");
+            for (Map.Entry<String, T> val : getValues().entrySet()) {
+                Element el = doc.createElement(val.getKey());
+                if ("tags".equals(val.getKey())) {
+                    el.setAttribute("type", "list");
+                    Map<String, String> tags = (Map<String, String>) val.getValue();
+                    for (Map.Entry<String, String> tag : tags.entrySet()) {
+                        Element elTag = doc.createElement("tag");
+                        elTag.setAttribute("type", "set");
+
+                        Element elKey = doc.createElement("key");
+                        elKey.appendChild(
+                                doc.createTextNode(XMLStringUtil.escapeControlChrs(tag.getKey())));
+                        elTag.appendChild(elKey);
+
+                        Element elValue = doc.createElement("value");
+                        elValue.appendChild(
+                                doc.createTextNode(
+                                        XMLStringUtil.escapeControlChrs(tag.getValue())));
+                        elTag.appendChild(elValue);
+
+                        el.appendChild(elTag);
+                    }
+                } else {
+                    String textValue = val.getValue() == null ? "" : val.getValue().toString();
+                    Text text = doc.createTextNode(XMLStringUtil.escapeControlChrs(textValue));
+                    el.appendChild(text);
+                }
+                parent.appendChild(el);
+            }
         }
     }
 }

@@ -19,7 +19,7 @@
  */
 package org.zaproxy.zap.extension.anticsrf;
 
-import static org.apache.commons.lang.StringEscapeUtils.escapeHtml;
+import static org.apache.commons.text.StringEscapeUtils.escapeHtml4;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
@@ -44,6 +44,8 @@ import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.URIException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.parosproxy.paros.network.HtmlParameter;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.network.HttpRequestHeader;
@@ -61,7 +63,7 @@ class ExtensionAntiCSRFUnitTest {
         private static final String NO_ID = null;
         private static final String NO_NAME = null;
         private static final String NO_VALUE = null;
-        private static final String UNKOWN_TOKEN = "UnkownToken";
+        private static final String UNKNOWN_TOKEN = "UnknownToken";
         private static final String KNOWN_TOKEN_1 = "AcsrfToken 1";
         private static final String KNOWN_TOKEN_2 = "AcsrfToken 2";
         private static final String KNOWN_TOKEN_3 = "AcsrfToken 3";
@@ -141,7 +143,7 @@ class ExtensionAntiCSRFUnitTest {
         @Test
         void shouldNotGetTokensFromInputFieldsIfIdIsNotAKnownToken() {
             // Given
-            String input = input(UNKOWN_TOKEN, NO_NAME, "value");
+            String input = input(UNKNOWN_TOKEN, NO_NAME, "value");
             Source source = createSource(form(input, input), form(input));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
@@ -152,7 +154,7 @@ class ExtensionAntiCSRFUnitTest {
         @Test
         void shouldNotGetTokensFromInputFieldsIfNameIsNotAKnownToken() {
             // Given
-            String input = input(NO_ID, UNKOWN_TOKEN, "value");
+            String input = input(NO_ID, UNKNOWN_TOKEN, "value");
             Source source = createSource(form(input, input), form(input));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
@@ -166,9 +168,9 @@ class ExtensionAntiCSRFUnitTest {
             Source source =
                     createSource(
                             form(
-                                    input(KNOWN_TOKEN_1, UNKOWN_TOKEN, "value1"),
-                                    input(KNOWN_TOKEN_2, UNKOWN_TOKEN, "value2")),
-                            form(input(KNOWN_TOKEN_3, UNKOWN_TOKEN, "value3")));
+                                    input(KNOWN_TOKEN_1, UNKNOWN_TOKEN, "value1"),
+                                    input(KNOWN_TOKEN_2, UNKNOWN_TOKEN, "value2")),
+                            form(input(KNOWN_TOKEN_3, UNKNOWN_TOKEN, "value3")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
             // Then
@@ -184,9 +186,9 @@ class ExtensionAntiCSRFUnitTest {
             Source source =
                     createSource(
                             form(
-                                    input(UNKOWN_TOKEN, KNOWN_TOKEN_1, "value1"),
-                                    input(UNKOWN_TOKEN, KNOWN_TOKEN_2, "value2")),
-                            form(input(UNKOWN_TOKEN, KNOWN_TOKEN_3, "value3")));
+                                    input(UNKNOWN_TOKEN, KNOWN_TOKEN_1, "value1"),
+                                    input(UNKNOWN_TOKEN, KNOWN_TOKEN_2, "value2")),
+                            form(input(UNKNOWN_TOKEN, KNOWN_TOKEN_3, "value3")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
             // Then
@@ -202,9 +204,9 @@ class ExtensionAntiCSRFUnitTest {
             Source source =
                     createSource(
                             form(
-                                    input(UNKOWN_TOKEN, KNOWN_TOKEN_1, "value1"),
-                                    input(KNOWN_TOKEN_2, UNKOWN_TOKEN, "value2")),
-                            form(input(UNKOWN_TOKEN, KNOWN_TOKEN_3, "value3")));
+                                    input(UNKNOWN_TOKEN, KNOWN_TOKEN_1, "value1"),
+                                    input(KNOWN_TOKEN_2, UNKNOWN_TOKEN, "value2")),
+                            form(input(UNKNOWN_TOKEN, KNOWN_TOKEN_3, "value3")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
             // Then
@@ -232,12 +234,12 @@ class ExtensionAntiCSRFUnitTest {
                     createSource(
                             form(
                                     input(
-                                            UNKOWN_TOKEN,
+                                            UNKNOWN_TOKEN,
                                             KNOWN_TOKEN_1.toLowerCase(Locale.ROOT),
                                             "value1"),
                                     input(
                                             KNOWN_TOKEN_2.toLowerCase(Locale.ROOT),
-                                            UNKOWN_TOKEN,
+                                            UNKNOWN_TOKEN,
                                             "value2")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
@@ -260,9 +262,9 @@ class ExtensionAntiCSRFUnitTest {
             Source source =
                     createSource(
                             form(
-                                    input(UNKOWN_TOKEN, stringWithKnownToken1, "value1"),
-                                    input(stringWithKnownToken2, UNKOWN_TOKEN, "value2")),
-                            form(input(UNKOWN_TOKEN, stringWithKnownToken3, "value3")));
+                                    input(UNKNOWN_TOKEN, stringWithKnownToken1, "value1"),
+                                    input(stringWithKnownToken2, UNKNOWN_TOKEN, "value2")),
+                            form(input(UNKNOWN_TOKEN, stringWithKnownToken3, "value3")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
             // Then
@@ -283,13 +285,23 @@ class ExtensionAntiCSRFUnitTest {
             Source source =
                     createSource(
                             form(
-                                    input(UNKOWN_TOKEN, stringWithKnownToken1, "value1"),
-                                    input(stringWithKnownToken2, UNKOWN_TOKEN, "value2")),
-                            form(input(UNKOWN_TOKEN, stringWithKnownToken3, "value3")));
+                                    input(UNKNOWN_TOKEN, stringWithKnownToken1, "value1"),
+                                    input(stringWithKnownToken2, UNKNOWN_TOKEN, "value2")),
+                            form(input(UNKNOWN_TOKEN, stringWithKnownToken3, "value3")));
             // When
             List<AntiCsrfToken> tokens = extensionAntiCSRF.getTokensFromResponse(message, source);
             // Then
             assertThat(tokens, hasSize(0));
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {KNOWN_TOKEN_1, KNOWN_TOKEN_1 + "-abc123"})
+        void shouldIdentifyTokenAsKnownWhenPartialMatching(String token) {
+            // Given
+            String extendedToken = token;
+            given(antiCsrfParam.isPartialMatchingEnabled()).willReturn(true);
+            // When / Then
+            assertThat(extensionAntiCSRF.isAntiCsrfToken(extendedToken), is(equalTo(true)));
         }
     }
 
@@ -351,6 +363,20 @@ class ExtensionAntiCSRFUnitTest {
             assertThat(form, is(equalTo(expectedForm(uri, params))));
         }
 
+        @Test
+        void shouldGenerateFormWithCustomActionUrl() throws Exception {
+            // Given
+            TreeSet<HtmlParameter> params =
+                    params(param("Name1", "Value1"), param("Name2", "Value2"));
+            given(message.getFormParams()).willReturn(params);
+            String actionUri = "http://example.com/formWithCustomAction";
+            given(httpRequestHeader.getURI()).willReturn(uri("http://example.com/form"));
+            // When
+            String form = extensionAntiCSRF.generateForm(message, actionUri);
+            // Then
+            assertThat(form, is(equalTo(expectedForm(actionUri, params))));
+        }
+
         private static TreeSet<HtmlParameter> params(HtmlParameter... params) {
             return new TreeSet<>(Arrays.asList(params));
         }
@@ -374,7 +400,7 @@ class ExtensionAntiCSRFUnitTest {
             StringBuilder strBuilder = new StringBuilder(250);
 
             strBuilder.append("<html>\n<body>\n");
-            String uriEscaped = escapeHtml(uri);
+            String uriEscaped = escapeHtml4(uri);
             strBuilder.append("<h3>").append(uriEscaped).append("</h3>");
             strBuilder
                     .append("<form id=\"f1\" method=\"POST\" action=\"")
@@ -382,8 +408,8 @@ class ExtensionAntiCSRFUnitTest {
                     .append("\">\n");
             strBuilder.append("<table>\n");
             for (HtmlParameter param : params) {
-                String name = escapeHtml(decode(param.getName()));
-                String value = escapeHtml(decode(param.getValue()));
+                String name = escapeHtml4(decode(param.getName()));
+                String value = escapeHtml4(decode(param.getValue()));
                 strBuilder.append("<tr><td>\n").append(name).append("<td>");
                 strBuilder.append("<input name=\"").append(name).append("\" ");
                 strBuilder.append("value=\"").append(value).append("\" ");

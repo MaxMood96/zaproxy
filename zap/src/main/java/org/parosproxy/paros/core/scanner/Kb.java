@@ -27,6 +27,8 @@
 // ZAP: 2019/06/01 Normalise line endings.
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2022/02/08 Use isEmpty where applicable.
+// ZAP: 2023/01/10 Tidy up logger.
 package org.parosproxy.paros.core.scanner;
 
 import java.util.TreeMap;
@@ -47,7 +49,7 @@ import org.apache.logging.log4j.Logger;
 public class Kb {
 
     // ZAP: Added logger.
-    private static final Logger logger = LogManager.getLogger(Kb.class);
+    private static final Logger LOGGER = LogManager.getLogger(Kb.class);
 
     // KB related
     // ZAP: Added the type arguments.
@@ -79,7 +81,7 @@ public class Kb {
     public synchronized Object get(String key) {
         // ZAP: Added the type argument.
         Vector<Object> v = getList(key);
-        if (v == null || v.size() == 0) {
+        if (v == null || v.isEmpty()) {
             return null;
         }
 
@@ -121,7 +123,7 @@ public class Kb {
             uri.setQuery(null);
         } catch (URIException e) {
             // ZAP: Added logging.
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             return;
         }
         // ZAP: Moved to after the try catch block.
@@ -150,7 +152,7 @@ public class Kb {
             uri.setQuery(null);
         } catch (URIException e) {
             // ZAP: Added logging.
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             return null;
         }
         // ZAP: Moved to after the try catch block.
@@ -167,7 +169,7 @@ public class Kb {
     public synchronized Object get(URI uri, String key) {
         // ZAP: Added the type argument.
         Vector<Object> v = getList(uri, key);
-        if (v == null || v.size() == 0) {
+        if (v == null || v.isEmpty()) {
             return null;
         }
 

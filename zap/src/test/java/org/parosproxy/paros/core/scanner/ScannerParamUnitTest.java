@@ -22,6 +22,7 @@ package org.parosproxy.paros.core.scanner;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 import org.junit.jupiter.api.AfterAll;
@@ -55,6 +56,102 @@ class ScannerParamUnitTest {
         param = new ScannerParam();
         configuration = new ZapXmlConfiguration();
         param.load(configuration);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 10})
+    void shouldLoadThreadPerHostFromConfig(int threadPerHost) {
+        // Given
+        configuration.setProperty("scanner.threadPerHost", threadPerHost);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getThreadPerHost(), is(equalTo(threadPerHost)));
+    }
+
+    @Test
+    void shouldDefaultThreadPerHost() {
+        // Given / When
+        param.load(configuration);
+        // Then
+        assertThat(param.getThreadPerHost(), is(equalTo(Constant.getDefaultThreadCount())));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0})
+    void shouldUseOneIfLoadingInvalidThreadPerHostFromConfig(int threadPerHost) {
+        // Given
+        configuration.setProperty("scanner.threadPerHost", threadPerHost);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getThreadPerHost(), is(equalTo(1)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 10})
+    void shouldSetThreadPerHost(int threadPerHost) {
+        // Given / When
+        param.setThreadPerHost(threadPerHost);
+        // Then
+        assertThat(param.getThreadPerHost(), is(equalTo(threadPerHost)));
+        assertThat(
+                configuration.getProperty("scanner.threadPerHost"),
+                is(equalTo(String.valueOf(threadPerHost))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0})
+    void shouldUseOneIfSettingInvalidNumberOfThreadPerHost(int threadPerHost) {
+        // Given / When
+        param.setThreadPerHost(threadPerHost);
+        // Then
+        assertThat(param.getThreadPerHost(), is(equalTo(1)));
+        assertThat(configuration.getProperty("scanner.threadPerHost"), is(equalTo("1")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 10})
+    void shouldLoadHostPerScanFromConfig(int hostPerScan) {
+        // Given
+        configuration.setProperty("scanner.hostPerScan", hostPerScan);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getHostPerScan(), is(equalTo(hostPerScan)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0})
+    void shouldUseOneIfLoadingInvalidHostPerScanFromConfig(int hostPerScan) {
+        // Given
+        configuration.setProperty("scanner.hostPerScan", hostPerScan);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getHostPerScan(), is(equalTo(1)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 10})
+    void shouldSetHostPerScan(int hostPerScan) {
+        // Given / When
+        param.setHostPerScan(hostPerScan);
+        // Then
+        assertThat(param.getHostPerScan(), is(equalTo(hostPerScan)));
+        assertThat(
+                configuration.getProperty("scanner.hostPerScan"),
+                is(equalTo(String.valueOf(hostPerScan))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 0})
+    void shouldUseOneIfSettingInvalidNumberOfHostPerScan(int hostPerScan) {
+        // Given / When
+        param.setHostPerScan(hostPerScan);
+        // Then
+        assertThat(param.getHostPerScan(), is(equalTo(1)));
+        assertThat(configuration.getProperty("scanner.hostPerScan"), is(equalTo("1")));
     }
 
     @Test
@@ -96,5 +193,63 @@ class ScannerParamUnitTest {
         // Then
         assertThat(
                 configuration.getBoolean(ScannerParam.SCAN_NULL_JSON_VALUES), is(equalTo(value)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 10})
+    void shouldLoadMaxAlertsPerRuleFromConfig(int maxAlertsPerRule) {
+        // Given
+        configuration.setProperty("scanner.maxAlertsPerRule", maxAlertsPerRule);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getMaxAlertsPerRule(), is(equalTo(maxAlertsPerRule)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-2, -1})
+    void shouldUseZeroIfLoadingInvalidMaxAlertsPerRuleFromConfig(int maxAlertsPerRule) {
+        // Given
+        configuration.setProperty("scanner.maxAlertsPerRule", maxAlertsPerRule);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(param.getMaxAlertsPerRule(), is(equalTo(0)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 10})
+    void shouldSetMaxAlertsPerRule(int maxAlertsPerRule) {
+        // Given / When
+        param.setMaxAlertsPerRule(maxAlertsPerRule);
+        // Then
+        assertThat(param.getMaxAlertsPerRule(), is(equalTo(maxAlertsPerRule)));
+        assertThat(
+                configuration.getProperty("scanner.maxAlertsPerRule"),
+                is(equalTo(maxAlertsPerRule)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-2, -1})
+    void shouldUseZeroIfSettingInvalidNumberOfMaxAlertsPerRule(int maxAlertsPerRule) {
+        // Given / When
+        param.setMaxAlertsPerRule(maxAlertsPerRule);
+        // Then
+        assertThat(param.getMaxAlertsPerRule(), is(equalTo(0)));
+        assertThat(configuration.getProperty("scanner.maxAlertsPerRule"), is(equalTo(0)));
+    }
+
+    @Test
+    void shouldMigrateOldOptions() {
+        // Given
+        configuration.setProperty("scanner.deleteOnShutdown", true);
+        configuration.setProperty("scanner.antiCSRF", true);
+        // When
+        param.load(configuration);
+        // Then
+        assertThat(configuration.getProperty("scanner.antiCSRF"), is(equalTo(true)));
+        assertThat(param.getHandleAntiCSRFTokens(), is(equalTo(true)));
+        assertNull(configuration.getProperty("scanner.antiCSFR"));
+        assertNull(configuration.getProperty("scanner.deleteOnShutdown"));
     }
 }

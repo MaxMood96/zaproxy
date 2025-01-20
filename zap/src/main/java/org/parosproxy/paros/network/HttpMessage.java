@@ -60,11 +60,13 @@
 // ZAP: 2021/04/01 Detect WebSocket upgrade messages having multiple Connection directives
 // ZAP: 2021/05/11 Fixed conversion of Request Method to/from CONNECT
 // ZAP: 2021/05/14 Add missing override annotation.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/10/17 Allow to set content encodings handler.
 package org.parosproxy.paros.network;
 
 import java.net.HttpCookie;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -76,7 +78,7 @@ import java.util.TreeSet;
 import java.util.Vector;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.URIException;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.model.HistoryReference;
@@ -105,6 +107,26 @@ public class HttpMessage implements Message {
 
     public static final String MESSAGE_TYPE = "HTTP";
 
+    private static final HttpEncodingsHandler DEFAULT_CONTENT_ENCODINGS_HANDLER =
+            (header, body) -> {
+                String encoding = header.getHeader(HttpHeader.CONTENT_ENCODING);
+                if (encoding == null || encoding.isEmpty()) {
+                    body.setContentEncodings(List.of());
+                    return;
+                }
+
+                List<HttpEncoding> encodings = List.of();
+                if (encoding.contains(HttpHeader.DEFLATE)) {
+                    encodings = List.of(HttpEncodingDeflate.getSingleton());
+                } else if (encoding.contains(HttpHeader.GZIP)) {
+                    encodings = List.of(HttpEncodingGzip.getSingleton());
+                }
+
+                body.setContentEncodings(encodings);
+            };
+
+    private static HttpEncodingsHandler contentEncodingsHandler;
+
     private HttpRequestHeader mReqHeader = new HttpRequestHeader();
     private HttpRequestBody mReqBody = new HttpRequestBody();
     private HttpResponseHeader mResHeader = new HttpResponseHeader();
@@ -118,7 +140,7 @@ public class HttpMessage implements Message {
     // ZAP: Added historyRef
     private HistoryReference historyRef = null;
     // ZAP: Added logger
-    private static Logger log = LogManager.getLogger(HttpMessage.class);
+    private static final Logger LOGGER = LogManager.getLogger(HttpMessage.class);
     // ZAP: Added HttpSession
     private HttpSession httpSession = null;
     // ZAP: Added support for requesting the message to be sent as a particular User
@@ -421,26 +443,29 @@ public class HttpMessage implements Message {
     /**
      * Sets the content encodings defined in the header into the body.
      *
-     * <p><strong>Note:</strong> Supports only {@code gzip} and {@code deflate}.
+     * <p><strong>Note:</strong> By default supports only {@code gzip} and {@code deflate}.
      *
      * @param header the header.
      * @param body the body.
      */
     public static void setContentEncodings(HttpHeader header, HttpBody body) {
-        String encoding = header.getHeader(HttpHeader.CONTENT_ENCODING);
-        if (encoding == null || encoding.isEmpty()) {
-            body.setContentEncodings(Collections.emptyList());
-            return;
+        var localHandler = contentEncodingsHandler;
+        if (localHandler == null) {
+            localHandler = DEFAULT_CONTENT_ENCODINGS_HANDLER;
         }
+        localHandler.handle(header, body);
+    }
 
-        List<HttpEncoding> encodings = new ArrayList<>(1);
-        if (encoding.contains(HttpHeader.DEFLATE)) {
-            encodings.add(HttpEncodingDeflate.getSingleton());
-        } else if (encoding.contains(HttpHeader.GZIP)) {
-            encodings.add(HttpEncodingGzip.getSingleton());
-        }
-
-        body.setContentEncodings(encodings);
+    /**
+     * Sets the handler of content encodings.
+     *
+     * <p><strong>Note:</strong> Not part of the public API.
+     *
+     * @param handler the handler.
+     * @see #setContentEncodings(HttpHeader, HttpBody)
+     */
+    public static void setContentEncodingsHandler(HttpEncodingsHandler handler) {
+        contentEncodingsHandler = handler;
     }
 
     /**
@@ -582,7 +607,7 @@ public class HttpMessage implements Message {
                                 .equalsIgnoreCase(msg.getRequestHeader().getURI().toString());
             } catch (Exception e1) {
                 // ZAP: log error
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
 
@@ -605,8 +630,7 @@ public class HttpMessage implements Message {
                                         ? 0
                                         : uri.getHost().toLowerCase(Locale.ROOT).hashCode());
             } catch (URIException e) {
-                log.error(
-                        "Failed to obtain the host for hashCode calculation: " + uri.toString(), e);
+                LOGGER.error("Failed to obtain the host for hashCode calculation: {}", uri, e);
             }
             result =
                     prime * result
@@ -681,7 +705,7 @@ public class HttpMessage implements Message {
 
         } catch (URIException e) {
             // ZAP: log error
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
 
         return result;
@@ -875,11 +899,16 @@ public class HttpMessage implements Message {
         return set;
     }
 
-    /** @return Returns the userObject. */
+    /**
+     * @return Returns the userObject.
+     */
     public Object getUserObject() {
         return userObject;
     }
-    /** @param userObject The userObject to set. */
+
+    /**
+     * @param userObject The userObject to set.
+     */
     public void setUserObject(Object userObject) {
         this.userObject = userObject;
     }
@@ -931,11 +960,12 @@ public class HttpMessage implements Message {
             try {
                 newMsg.getRequestHeader().setMessage(this.getRequestHeader().toString());
             } catch (HttpMalformedHeaderException e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
             newMsg.setRequestBody(this.getRequestBody().getBytes());
         }
     }
+
     /**
      * @return Get the elapsed time (time difference) between the request is sent and all response
      *     is received. In millis. The value is zero if the response is not received.
@@ -962,6 +992,7 @@ public class HttpMessage implements Message {
     public long getTimeSentMillis() {
         return timeSent;
     }
+
     /**
      * Set the time when the request is sent.
      *
@@ -971,12 +1002,16 @@ public class HttpMessage implements Message {
         this.timeSent = timeSent;
     }
 
-    /** @return Returns the note. */
+    /**
+     * @return Returns the note.
+     */
     public String getNote() {
         return note;
     }
 
-    /** @param note The note to set. */
+    /**
+     * @param note The note to set.
+     */
     public void setNote(String note) {
         this.note = note;
     }
@@ -1016,6 +1051,8 @@ public class HttpMessage implements Message {
                 }
                 // Clear the body
                 body = "";
+                // Remove Content-Type if present
+                getRequestHeader().setHeader(HttpRequestHeader.CONTENT_TYPE, null);
 
             } else if (method.equals(HttpRequestHeader.POST)) {
                 // To be a port, move all URL query params into the body
@@ -1035,6 +1072,10 @@ public class HttpMessage implements Message {
                             sb.append('=');
                         }
                     }
+                    getRequestHeader()
+                            .setHeader(
+                                    HttpRequestHeader.CONTENT_TYPE,
+                                    HttpRequestHeader.FORM_URLENCODED_CONTENT_TYPE);
                     body = sb.toString();
                     uri.setQuery(null);
                 }
@@ -1062,9 +1103,9 @@ public class HttpMessage implements Message {
             getRequestBody().setBody(body);
         } catch (HttpMalformedHeaderException e) {
             // Ignore?
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         } catch (URIException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 
@@ -1238,5 +1279,11 @@ public class HttpMessage implements Message {
     @Override
     public String getType() {
         return MESSAGE_TYPE;
+    }
+
+    /** <strong>Note:</strong> Not part of the public API. */
+    public interface HttpEncodingsHandler {
+
+        void handle(HttpHeader header, HttpBody body);
     }
 }

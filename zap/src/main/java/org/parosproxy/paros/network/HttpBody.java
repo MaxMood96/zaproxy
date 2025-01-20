@@ -28,6 +28,9 @@
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
 // ZAP: 2020/12/09 Add content encoding.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/10/25 JavaDoc fixes and use of List.
 package org.parosproxy.paros.network;
 
 import java.io.IOException;
@@ -35,12 +38,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
 import java.nio.charset.UnsupportedCharsetException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.zaproxy.zap.network.HttpEncoding;
@@ -52,7 +53,7 @@ import org.zaproxy.zap.network.HttpEncoding;
  */
 public abstract class HttpBody {
 
-    private static final Logger log = LogManager.getLogger(HttpBody.class);
+    private static final Logger LOGGER = LogManager.getLogger(HttpBody.class);
 
     /**
      * The name of the default charset ({@code ISO-8859-1}) used for {@code String} related
@@ -77,7 +78,7 @@ public abstract class HttpBody {
     private boolean determineCharset = true;
     private boolean contentEncodingErrors;
 
-    private List<HttpEncoding> encodings = Collections.emptyList();
+    private List<HttpEncoding> encodings = List.of();
 
     /** Constructs a {@code HttpBody} with no contents (that is, zero length). */
     public HttpBody() {
@@ -197,7 +198,7 @@ public abstract class HttpBody {
             contentEncodingErrors = false;
             return decoded;
         } catch (IOException e) {
-            log.warn("An error occurred while encoding the body: {}", e.getMessage());
+            LOGGER.warn("An error occurred while encoding the body: {}", e.getMessage());
         }
         contentEncodingErrors = true;
         return value;
@@ -409,7 +410,7 @@ public abstract class HttpBody {
             contentEncodingErrors = false;
             return decoded;
         } catch (IOException e) {
-            log.warn("An error occurred while decoding the body: {}", e.getMessage());
+            LOGGER.warn("An error occurred while decoding the body: {}", e.getMessage());
         }
         contentEncodingErrors = true;
         return value;
@@ -449,7 +450,7 @@ public abstract class HttpBody {
      * to avoid more memory allocations.
      *
      * @return the content of the body.
-     * @since TOOD add version
+     * @since 2.10.0
      * @see #getContentEncodings()
      * @see #hasContentEncodingErrors()
      * @see #toString()
@@ -467,7 +468,7 @@ public abstract class HttpBody {
      *
      * @return {@code true} if there are errors while using the content encodings, {@code false}
      *     otherwise.
-     * @since TOOD add version
+     * @since 2.10.0
      * @see #getContent()
      */
     public boolean hasContentEncodingErrors() {
@@ -477,7 +478,8 @@ public abstract class HttpBody {
     /**
      * Sets the content of the body as bytes, applying any content encodings of the body, if any.
      *
-     * @since TOOD add version
+     * @param content the content of the body.
+     * @since 2.10.0
      * @see #getContentEncodings()
      */
     public void setContent(byte[] content) {
@@ -565,7 +567,7 @@ public abstract class HttpBody {
                 setCharsetImpl(newCharset);
             }
         } catch (IllegalCharsetNameException | UnsupportedCharsetException e) {
-            log.error("Failed to set charset: " + charsetName, e);
+            LOGGER.error("Failed to set charset: {}", charsetName, e);
         }
     }
 
@@ -594,10 +596,7 @@ public abstract class HttpBody {
         Objects.requireNonNull(encodings);
         encodings.forEach(Objects::requireNonNull);
 
-        this.encodings =
-                encodings.isEmpty()
-                        ? Collections.emptyList()
-                        : Collections.unmodifiableList(new ArrayList<>(encodings));
+        this.encodings = List.copyOf(encodings);
         resetCachedValues();
     }
 

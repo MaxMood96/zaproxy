@@ -34,7 +34,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -44,10 +48,11 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import org.apache.commons.configuration.tree.xpath.XPathExpressionEngine;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Test;
 import org.zaproxy.zap.control.AddOn.BundleData;
 import org.zaproxy.zap.control.AddOn.HelpSetData;
@@ -61,87 +66,31 @@ class AddOnUnitTest extends AddOnTestUtils {
             getResourcePath("ZapVersions-deps.xml", AddOnUnitTest.class).toFile();
 
     @Test
-    @SuppressWarnings("deprecation")
-    void testIsAddon() throws Exception {
-        assertTrue(AddOn.isAddOn("test-alpha-1.zap"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testNotAddonNoState() throws Exception {
-        assertFalse(AddOn.isAddOn("test-1.zap"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testNotAddonBadExt() throws Exception {
-        assertFalse(AddOn.isAddOn("test-beta-1.zip"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testNotAddonBadStatus() throws Exception {
-        assertFalse(AddOn.isAddOn("test-xxx-1.zap"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testNotAddonBadVersion() throws Exception {
-        assertFalse(AddOn.isAddOn("test-beta-A.zap"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testId() throws Exception {
-        AddOn addOn = new AddOn("test-alpha-1.zap");
-        assertThat(addOn.getId(), is("test"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testStatus() throws Exception {
-        AddOn addOn = new AddOn("test-alpha-1.zap");
-        assertThat(addOn.getStatus().name(), is("alpha"));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
-    void testVersion() throws Exception {
-        AddOn addOn = new AddOn("test-alpha-1.zap");
-        assertThat(addOn.getVersion().toString(), is(equalTo("1.0.0")));
-        assertThat(addOn.getFileVersion(), is(1));
-    }
-
-    @Test
-    @SuppressWarnings("deprecation")
     void testAlpha2UpdatesAlpha1() throws Exception {
-        AddOn addOnA1 = new AddOn("test-alpha-1.zap");
-        AddOn addOnA2 = new AddOn("test-alpha-2.zap");
+        AddOn addOnA1 = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
+        AddOn addOnA2 = new AddOn(createAddOnFile("test-alpha-2.zap", "alpha", "2"));
         assertTrue(addOnA2.isUpdateTo(addOnA1));
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testAlpha1DoesNotUpdateAlpha2() throws Exception {
-        AddOn addOnA1 = new AddOn("test-alpha-1.zap");
-        AddOn addOnA2 = new AddOn("test-alpha-2.zap");
+        AddOn addOnA1 = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
+        AddOn addOnA2 = new AddOn(createAddOnFile("test-alpha-2.zap", "alpha", "1"));
         assertFalse(addOnA1.isUpdateTo(addOnA2));
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testAlpha2UpdatesBeta1() throws Exception {
-        AddOn addOnB1 = new AddOn("test-beta-1.zap");
-        AddOn addOnA2 = new AddOn("test-alpha-2.zap");
+        AddOn addOnB1 = new AddOn(createAddOnFile("test-beta-1.zap", "beta", "1"));
+        AddOn addOnA2 = new AddOn(createAddOnFile("test-alpha-2.zap", "alpha", "2"));
         assertTrue(addOnA2.isUpdateTo(addOnB1));
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testAlpha2DoesNotUpdateTestyAlpha1() throws Exception {
         // Given
-        AddOn addOnA1 = new AddOn("test-alpha-1.zap");
-        AddOn addOnA2 = new AddOn("testy-alpha-2.zap");
+        AddOn addOnA1 = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
+        AddOn addOnA2 = new AddOn(createAddOnFile("testy-alpha-2.zap", "alpha", "1"));
         // When
         IllegalArgumentException e =
                 assertThrows(IllegalArgumentException.class, () -> addOnA2.isUpdateTo(addOnA1));
@@ -236,9 +185,8 @@ class AddOnUnitTest extends AddOnTestUtils {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testCanLoadAddOnNotBefore() throws Exception {
-        AddOn ao = new AddOn("test-alpha-1.zap");
+        AddOn ao = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
         ao.setNotBeforeVersion("2.4.0");
         assertTrue(ao.canLoadInVersion("2.4.0"));
 
@@ -250,9 +198,8 @@ class AddOnUnitTest extends AddOnTestUtils {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testCanLoadAddOnNotFrom() throws Exception {
-        AddOn ao = new AddOn("test-alpha-1.zap");
+        AddOn ao = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
         ao.setNotBeforeVersion("2.4.0");
         ao.setNotFromVersion("2.8.0");
         assertTrue(ao.canLoadInVersion("2.4.0"));
@@ -264,9 +211,8 @@ class AddOnUnitTest extends AddOnTestUtils {
     }
 
     @Test
-    @SuppressWarnings("deprecation")
     void testCanLoadAddOnNotBeforeNotFrom() throws Exception {
-        AddOn ao = new AddOn("test-alpha-1.zap");
+        AddOn ao = new AddOn(createAddOnFile("test-alpha-1.zap", "alpha", "1"));
         ao.setNotBeforeVersion("2.4.0");
         assertTrue(ao.canLoadInVersion("2.4.0"));
         ao.setNotFromVersion("2.7.0");
@@ -611,6 +557,16 @@ class AddOnUnitTest extends AddOnTestUtils {
         String releaseDate = addOn.getReleaseDate();
         // Then
         assertThat(releaseDate, is(nullValue()));
+    }
+
+    @Test
+    void shouldHaveCorrectSize() throws Exception {
+        // Given
+        AddOn addOn = new AddOn(createAddOnFile("addon.zap"));
+        // When
+        long size = addOn.getSize();
+        // Then
+        assertThat(size, is(equalTo(189L)));
     }
 
     @Test
@@ -1002,7 +958,7 @@ class AddOnUnitTest extends AddOnTestUtils {
     void shouldSetFileSystemUrlToAddOnLib() throws Exception {
         // Given
         AddOn.Lib lib = new AddOn.Lib("lib.jar");
-        URL fsUrl = new URL("file:///some/path");
+        URL fsUrl = new URI("file:///some/path").toURL();
         // When
         lib.setFileSystemUrl(fsUrl);
         // Then
@@ -1013,16 +969,58 @@ class AddOnUnitTest extends AddOnTestUtils {
     void shouldSetNullFileSystemUrlToAddOnLib() throws Exception {
         // Given
         AddOn.Lib lib = new AddOn.Lib("lib.jar");
-        lib.setFileSystemUrl(new URL("file:///some/path"));
+        lib.setFileSystemUrl(new URI("file:///some/path").toURL());
         // When
         lib.setFileSystemUrl(null);
         // Then
         assertThat(lib.getFileSystemUrl(), is(nullValue()));
     }
 
+    @Test
+    void shouldReturnNullSbomIfNotPresent() throws Exception {
+        // Given
+        AddOn addOn = new AddOn(createAddOnFile("addon.zap"));
+        // When
+        String sbom = addOn.getSbom();
+        // Then
+        assertThat(sbom, is(nullValue()));
+    }
+
+    @Test
+    void shouldReturnNullSbomIfFileNull() throws Exception {
+        // Given
+        AddOn addOn = new AddOn(createAddOnFile("addon.zap"));
+        addOn.setFile(null);
+        // When
+        String sbom = addOn.getSbom();
+        // Then
+        assertThat(sbom, is(nullValue()));
+    }
+
+    @Test
+    void shouldReturnSbomIfPresent() throws Exception {
+        // Given
+        String bom = "{\"bomFormat\" : \"CycloneDX\"}";
+        Path addOnPath = createAddOnFile("addon.zap");
+
+        File f = File.createTempFile("bom", ".json");
+        FileUtils.writeStringToFile(f, bom, StandardCharsets.UTF_8);
+
+        try (FileSystem zipfs =
+                FileSystems.newFileSystem(URI.create("jar:file:" + addOnPath), new HashMap<>())) {
+            Files.copy(f.toPath(), zipfs.getPath(AddOn.BOM_FILE_NAME));
+        }
+
+        AddOn addOn = new AddOn(addOnPath);
+
+        // When
+        String sbom = addOn.getSbom();
+        // Then
+        assertThat(sbom, is(bom));
+    }
+
     private static ZapXmlConfiguration createZapVersionsXml() throws Exception {
         ZapXmlConfiguration zapVersionsXml = new ZapXmlConfiguration(ZAP_VERSIONS_XML);
-        zapVersionsXml.setExpressionEngine(new XPathExpressionEngine());
         return zapVersionsXml;
     }
 }

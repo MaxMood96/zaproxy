@@ -68,6 +68,7 @@ import org.zaproxy.zap.view.table.decorator.NoteTableCellItemIconHighlighter;
  * A table specialised in showing data from {@code HistoryReference}s obtained from {@code
  * HistoryReferencesTableModel}s.
  */
+@SuppressWarnings("serial")
 public class HistoryReferencesTable extends ZapTable {
 
     private static final long serialVersionUID = -6988769961088738602L;
@@ -163,6 +164,22 @@ public class HistoryReferencesTable extends ZapTable {
 
         final List<HistoryReference> hrefList = new ArrayList<>(rows.length);
         for (int row : rows) {
+            HistoryReference hRef = getHistoryReferenceAtViewRow(row);
+            if (hRef != null) {
+                hrefList.add(hRef);
+            }
+        }
+        return hrefList;
+    }
+
+    public List<HistoryReference> getAllHistoryReferences() {
+        int rowCount = this.getRowCount();
+        if (rowCount == 0) {
+            return Collections.emptyList();
+        }
+
+        final List<HistoryReference> hrefList = new ArrayList<>(rowCount);
+        for (int row = 0; row < rowCount; row++) {
             HistoryReference hRef = getHistoryReferenceAtViewRow(row);
             if (hRef != null) {
                 hrefList.add(hRef);

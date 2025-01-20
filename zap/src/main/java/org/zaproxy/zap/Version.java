@@ -20,7 +20,6 @@
 package org.zaproxy.zap;
 
 import com.github.zafarkhaja.semver.expr.ExpressionParser;
-import org.apache.commons.lang.Validate;
 
 /**
  * A semantic version.
@@ -41,13 +40,19 @@ public final class Version implements Comparable<Version> {
      *     not a valid semantic version.
      */
     public Version(String version) throws IllegalArgumentException {
-        Validate.notEmpty(version, "Parameter version must not be null nor empty.");
+        validateNotEmpty(version, "Parameter version must not be null nor empty.");
 
         try {
-            impl = new com.github.zafarkhaja.semver.Version.Builder(version).build();
+            impl = com.github.zafarkhaja.semver.Version.parse(version);
         } catch (com.github.zafarkhaja.semver.ParseException e) {
             throw new IllegalArgumentException(
                     "Parameter version [" + version + "] is not valid: " + e.getMessage());
+        }
+    }
+
+    private static void validateNotEmpty(String value, String message) {
+        if (value == null || value.isEmpty()) {
+            throw new IllegalArgumentException(message);
         }
     }
 
@@ -57,7 +62,7 @@ public final class Version implements Comparable<Version> {
      * @return the major version
      */
     public int getMajorVersion() {
-        return impl.getMajorVersion();
+        return (int) impl.majorVersion();
     }
 
     /**
@@ -66,7 +71,7 @@ public final class Version implements Comparable<Version> {
      * @return the minor version
      */
     public int getMinorVersion() {
-        return impl.getMinorVersion();
+        return (int) impl.minorVersion();
     }
 
     /**
@@ -75,7 +80,7 @@ public final class Version implements Comparable<Version> {
      * @return the patch version
      */
     public int getPatchVersion() {
-        return impl.getPatchVersion();
+        return (int) impl.patchVersion();
     }
 
     /**
@@ -88,7 +93,7 @@ public final class Version implements Comparable<Version> {
      * @see #isValidVersionRange(String)
      */
     public boolean matches(String versionRange) throws IllegalArgumentException {
-        Validate.notEmpty(versionRange, "Parameter versionRange must not be null nor empty.");
+        validateNotEmpty(versionRange, "Parameter versionRange must not be null nor empty.");
 
         try {
             return impl.satisfies(versionRange);

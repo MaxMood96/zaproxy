@@ -30,7 +30,10 @@ import org.parosproxy.paros.model.SiteNode;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.model.Context;
 
-/** @since 2.3.0 */
+/**
+ * @since 2.3.0
+ */
+@SuppressWarnings("serial")
 public class PopupMenuItemContextExclude extends PopupMenuItemSiteNodeContainer {
 
     private static final long serialVersionUID = 2282358266003940700L;
@@ -78,7 +81,6 @@ public class PopupMenuItemContextExclude extends PopupMenuItemSiteNodeContainer 
         List<Context> contexts = session.getContexts();
         for (Context context : contexts) {
             ExtensionPopupMenuItem piicm = createPopupExcludeFromContextMenu(context);
-            piicm.setMenuIndex(this.getMenuIndex());
             mainPopupMenuItems.add(piicm);
             this.subMenus.add(piicm);
         }

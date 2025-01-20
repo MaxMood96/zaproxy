@@ -27,8 +27,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.extension.Extension;
+import org.zaproxy.zap.control.AddOn;
 import org.zaproxy.zap.control.ExtensionFactory;
 
+@SuppressWarnings("serial")
 public class OptionsExtensionTableModel extends AbstractTableModel {
 
     private static final long serialVersionUID = 1L;
@@ -42,7 +44,7 @@ public class OptionsExtensionTableModel extends AbstractTableModel {
 
     private List<Extension> extensions = ExtensionFactory.getAllExtensions();
 
-    private static Logger log = LogManager.getLogger(OptionsExtensionTableModel.class);
+    private static final Logger LOGGER = LogManager.getLogger(OptionsExtensionTableModel.class);
 
     private Map<String, Boolean> extensionsState = new HashMap<>();
 
@@ -79,7 +81,7 @@ public class OptionsExtensionTableModel extends AbstractTableModel {
                         return ext.getUIName();
                 }
             } catch (Exception e) {
-                log.error("Failed on extension " + ext.getName(), e);
+                LOGGER.error("Failed on extension {}", ext.getName(), e);
             }
         }
         return null;
@@ -97,6 +99,10 @@ public class OptionsExtensionTableModel extends AbstractTableModel {
     public boolean isCellEditable(int rowIndex, int columnIndex) {
         if (columnIndex == 0) {
             Extension selectedExtension = getExtension(rowIndex);
+            AddOn addOn = selectedExtension.getAddOn();
+            if (addOn != null && addOn.isMandatory()) {
+                return false;
+            }
             // Dont allow enabled core extensions to be edited via the UI (can edit the config file
             // directly;)
             if (selectedExtension.isCore() && getEnabledState(selectedExtension)) {

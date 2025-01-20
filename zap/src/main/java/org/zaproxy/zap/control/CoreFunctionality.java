@@ -22,7 +22,6 @@ package org.zaproxy.zap.control;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import org.parosproxy.paros.core.scanner.AbstractPlugin;
 import org.parosproxy.paros.extension.Extension;
 import org.parosproxy.paros.extension.history.ProxyListenerLogEventPublisher;
 import org.parosproxy.paros.model.HistoryReferenceEventPublisher;
@@ -30,8 +29,6 @@ import org.parosproxy.paros.model.SiteMapEventPublisher;
 import org.zaproxy.zap.extension.alert.AlertEventPublisher;
 import org.zaproxy.zap.extension.ascan.ActiveScanEventPublisher;
 import org.zaproxy.zap.extension.brk.BreakEventPublisher;
-import org.zaproxy.zap.extension.pscan.PluginPassiveScanner;
-import org.zaproxy.zap.extension.spider.SpiderEventPublisher;
 
 /**
  * Class that contains/provides all built-in (core) components (i.e. extensions and active/passive
@@ -51,10 +48,8 @@ import org.zaproxy.zap.extension.spider.SpiderEventPublisher;
 public final class CoreFunctionality {
 
     private static List<Extension> builtInExtensions;
-    private static List<AbstractPlugin> builtInActiveScanRules;
-    private static List<PluginPassiveScanner> builtInPassiveScanRules;
 
-    private CoreFunctionality() {
+    static {
         // Register core event bus publishers asap
         ActiveScanEventPublisher.getPublisher();
         AlertEventPublisher.getPublisher();
@@ -62,7 +57,6 @@ public final class CoreFunctionality {
         HistoryReferenceEventPublisher.getPublisher();
         ProxyListenerLogEventPublisher.getPublisher();
         SiteMapEventPublisher.getPublisher();
-        SpiderEventPublisher.getPublisher();
     }
 
     /**
@@ -83,11 +77,7 @@ public final class CoreFunctionality {
             ArrayList<Extension> extensions = new ArrayList<>();
             extensions.add(new org.parosproxy.paros.extension.edit.ExtensionEdit());
             extensions.add(new org.parosproxy.paros.extension.history.ExtensionHistory());
-            extensions.add(
-                    new org.parosproxy.paros.extension.manualrequest
-                            .ExtensionManualRequestEditor());
             extensions.add(new org.parosproxy.paros.extension.option.ExtensionOption());
-            extensions.add(new org.parosproxy.paros.extension.state.ExtensionState());
             extensions.add(new org.zaproxy.zap.extension.alert.ExtensionAlert());
             extensions.add(new org.zaproxy.zap.extension.anticsrf.ExtensionAntiCSRF());
             extensions.add(new org.zaproxy.zap.extension.api.ExtensionAPI());
@@ -96,13 +86,9 @@ public final class CoreFunctionality {
             extensions.add(new org.zaproxy.zap.extension.authorization.ExtensionAuthorization());
             extensions.add(new org.zaproxy.zap.extension.autoupdate.ExtensionAutoUpdate());
             extensions.add(new org.zaproxy.zap.extension.brk.ExtensionBreak());
-            extensions.add(new org.zaproxy.zap.extension.callback.ExtensionCallback());
             extensions.add(new org.zaproxy.zap.extension.compare.ExtensionCompare());
-            extensions.add(new org.zaproxy.zap.extension.dynssl.ExtensionDynSSL());
             extensions.add(new org.zaproxy.zap.extension.ext.ExtensionExtension());
             extensions.add(new org.zaproxy.zap.extension.forceduser.ExtensionForcedUser());
-            extensions.add(
-                    new org.zaproxy.zap.extension.globalexcludeurl.ExtensionGlobalExcludeURL());
             extensions.add(new org.zaproxy.zap.extension.help.ExtensionHelp());
             extensions.add(
                     new org.zaproxy.zap.extension.httppanel.component.all
@@ -112,12 +98,6 @@ public final class CoreFunctionality {
             extensions.add(
                     new org.zaproxy.zap.extension.httppanel.view.image
                             .ExtensionHttpPanelImageView());
-            extensions.add(
-                    new org.zaproxy.zap.extension.httppanel.view.largerequest
-                            .ExtensionHttpPanelLargeRequestView());
-            extensions.add(
-                    new org.zaproxy.zap.extension.httppanel.view.largeresponse
-                            .ExtensionHttpPanelLargeResponseView());
             extensions.add(
                     new org.zaproxy.zap.extension.httppanel.view.paramtable
                             .ExtensionHttpPanelRequestFormTableView());
@@ -132,16 +112,13 @@ public final class CoreFunctionality {
                             .ExtensionHttpPanelSyntaxHighlightTextView());
             extensions.add(new org.zaproxy.zap.extension.httpsessions.ExtensionHttpSessions());
             extensions.add(new org.zaproxy.zap.extension.keyboard.ExtensionKeyboard());
-            extensions.add(new org.zaproxy.zap.extension.log4j.ExtensionLog4j());
             extensions.add(new org.zaproxy.zap.extension.params.ExtensionParams());
-            extensions.add(new org.zaproxy.zap.extension.proxies.ExtensionProxies());
             extensions.add(new org.zaproxy.zap.extension.pscan.ExtensionPassiveScan());
             extensions.add(new org.zaproxy.zap.extension.ruleconfig.ExtensionRuleConfig());
             extensions.add(new org.zaproxy.zap.extension.script.ExtensionScript());
             extensions.add(new org.zaproxy.zap.extension.search.ExtensionSearch());
             extensions.add(new org.zaproxy.zap.extension.sessions.ExtensionSessionManagement());
             extensions.add(new org.zaproxy.zap.extension.siterefresh.ExtensionSitesRefresh());
-            extensions.add(new org.zaproxy.zap.extension.spider.ExtensionSpider());
             extensions.add(new org.zaproxy.zap.extension.stats.ExtensionStats());
             extensions.add(new org.zaproxy.zap.extension.stdmenus.ExtensionStdMenus());
             extensions.add(new org.zaproxy.zap.extension.uiutils.ExtensionUiUtils());
@@ -154,58 +131,14 @@ public final class CoreFunctionality {
     }
 
     /**
-     * Returns an unmodifiable list containing all built-in (core) active scanners.
-     *
-     * @return an unmodifiable list containing all built-in active scanners
-     * @see AbstractPlugin
-     */
-    public static List<AbstractPlugin> getBuiltInActiveScanRules() {
-        if (builtInActiveScanRules == null) {
-            createActiveScanRules();
-        }
-        return builtInActiveScanRules;
-    }
-
-    private static synchronized void createActiveScanRules() {
-        if (builtInActiveScanRules == null) {
-            ArrayList<AbstractPlugin> rules = new ArrayList<>();
-            rules.add(new org.zaproxy.zap.extension.ascan.ScriptsActiveScanner());
-            rules.trimToSize();
-
-            for (AbstractPlugin rule : rules) {
-                rule.setStatus(AddOn.Status.release);
-            }
-
-            builtInActiveScanRules = Collections.unmodifiableList(rules);
-        }
-    }
-
-    /**
      * Returns an unmodifiable list containing all built-in (core) passive scanners.
      *
      * @return an unmodifiable list containing all built-in passive scanners
-     * @see PluginPassiveScanner
+     * @deprecated (2.15.0) The core scan rules are directly loaded by the corresponding extension.
      */
-    public static List<PluginPassiveScanner> getBuiltInPassiveScanRules() {
-        if (builtInPassiveScanRules == null) {
-            createPassiveScanRules();
-        }
-        return builtInPassiveScanRules;
-    }
-
-    private static synchronized void createPassiveScanRules() {
-        if (builtInPassiveScanRules == null) {
-            ArrayList<PluginPassiveScanner> rules = new ArrayList<>();
-            rules.add(new org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner());
-            rules.add(new org.zaproxy.zap.extension.pscan.scanner.ScriptsPassiveScanner());
-            rules.add(new org.zaproxy.zap.extension.pscan.scanner.StatsPassiveScanner());
-            rules.trimToSize();
-
-            for (PluginPassiveScanner rule : rules) {
-                rule.setStatus(AddOn.Status.release);
-            }
-
-            builtInPassiveScanRules = Collections.unmodifiableList(rules);
-        }
+    @Deprecated(since = "2.15.0", forRemoval = true)
+    public static List<org.zaproxy.zap.extension.pscan.PluginPassiveScanner>
+            getBuiltInPassiveScanRules() {
+        return List.of();
     }
 }

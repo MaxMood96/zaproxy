@@ -19,9 +19,11 @@
  */
 package org.parosproxy.paros.core.scanner;
 
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 
-/** @author andy */
+/**
+ * @author andy
+ */
 public class VariantJSONQuery extends VariantAbstractRPCQuery {
 
     public static final String JSON_RPC_CONTENT_TYPE = "application/json";
@@ -37,6 +39,13 @@ public class VariantJSONQuery extends VariantAbstractRPCQuery {
 
     private SimpleStringReader sr;
     private boolean scanNullValues;
+
+    private static final String SHORT_NAME = "json";
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
 
     public VariantJSONQuery() {
         super(NameValuePair.TYPE_JSON);
@@ -73,6 +82,9 @@ public class VariantJSONQuery extends VariantAbstractRPCQuery {
 
     @Override
     public void parseContent(String content) {
+        if (content.isEmpty()) {
+            return;
+        }
         sr = new SimpleStringReader(content);
         parseObject();
     }

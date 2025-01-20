@@ -19,14 +19,21 @@
  */
 package org.zaproxy.zap.extension.api;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.regex.Pattern;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.common.AbstractParam;
 import org.zaproxy.zap.network.DomainMatcher;
 
@@ -38,13 +45,15 @@ public class OptionsParamApi extends AbstractParam {
     public static final String UI_ENABLED = "api.uienabled";
     public static final String SECURE_ONLY = "api.secure";
     public static final String API_KEY = "api.key";
-    private static final String DISABLE_KEY = "api.disablekey";
-    private static final String INC_ERROR_DETAILS = "api.incerrordetails";
-    private static final String AUTOFILL_KEY = "api.autofillkey";
-    private static final String ENABLE_JSONP = "api.enablejsonp";
-    private static final String NO_KEY_FOR_SAFE_OPS = "api.nokeyforsafeops";
-    private static final String REPORT_PERM_ERRORS = "api.reportpermerrors";
+    public static final String DISABLE_KEY = "api.disablekey";
+    public static final String INC_ERROR_DETAILS = "api.incerrordetails";
+    public static final String AUTOFILL_KEY = "api.autofillkey";
+    public static final String ENABLE_JSONP = "api.enablejsonp";
+    public static final String NO_KEY_FOR_SAFE_OPS = "api.nokeyforsafeops";
+    public static final String REPORT_PERM_ERRORS = "api.reportpermerrors";
     private static final String NONCE_TTL_IN_SECS = "api.noncettlsecs";
+    public static final String FILE_TRANSFER = "api.filexfer";
+    public static final String TRANSFER_DIR = "api.xferdir";
 
     private static final String PROXY_PERMITTED_ADDRS_KEY = "api.addrs";
     private static final String ADDRESS_KEY = PROXY_PERMITTED_ADDRS_KEY + ".addr";
@@ -52,6 +61,9 @@ public class OptionsParamApi extends AbstractParam {
     private static final String ADDRESS_REGEX_KEY = "regex";
     private static final String ADDRESS_ENABLED_KEY = "enabled";
     private static final String CONFIRM_REMOVE_ADDRESS = "api.addrs.confirmRemoveAddr";
+    protected static final String CALLBACK_KEY = "api.callbacks.callback";
+    private static final String CALLBACK_URL_KEY = "url";
+    private static final String CALLBACK_PREFIX_KEY = "prefix";
 
     private static final int DEFAULT_NONCE_TTL_IN_SECS = 5 * 60; // 5 mins
 
@@ -66,10 +78,13 @@ public class OptionsParamApi extends AbstractParam {
     private boolean enableJSONP;
     private boolean noKeyForSafeOps;
     private boolean reportPermErrors;
+    private boolean fileTransferAllowed;
     private boolean confirmRemovePermittedAddress = true;
     private List<DomainMatcher> permittedAddresses = new ArrayList<>(0);
     private List<DomainMatcher> permittedAddressesEnabled = new ArrayList<>(0);
     private int nonceTimeToLiveInSecs = DEFAULT_NONCE_TTL_IN_SECS;
+    private Map<String, String> persistentCallBacks = new HashMap<>();
+    private String transferDir;
 
     private String key = "";
 
@@ -87,10 +102,27 @@ public class OptionsParamApi extends AbstractParam {
         enableJSONP = getBoolean(ENABLE_JSONP, false);
         noKeyForSafeOps = getBoolean(NO_KEY_FOR_SAFE_OPS, false);
         reportPermErrors = getBoolean(REPORT_PERM_ERRORS, false);
+        fileTransferAllowed = getBoolean(FILE_TRANSFER, false);
         nonceTimeToLiveInSecs = getInt(NONCE_TTL_IN_SECS, DEFAULT_NONCE_TTL_IN_SECS);
         key = getString(API_KEY, "");
         loadPermittedAddresses();
         this.confirmRemovePermittedAddress = getBoolean(CONFIRM_REMOVE_ADDRESS, true);
+        loadPersistentCallBacks();
+        transferDir =
+                getString(
+                        TRANSFER_DIR,
+                        new File(Constant.getZapHome(), "transfer").getAbsolutePath());
+        File transferFile = new File(transferDir);
+        if (!transferFile.exists()) {
+            try {
+                Files.createDirectories(transferFile.toPath());
+            } catch (IOException e) {
+                LOGGER.error(
+                        "Failed to create API transfer directory {}",
+                        transferFile.getAbsolutePath(),
+                        e);
+            }
+        }
     }
 
     @Override
@@ -317,7 +349,7 @@ public class OptionsParamApi extends AbstractParam {
                     addr = new DomainMatcher(pattern);
                 } catch (IllegalArgumentException e) {
                     LOGGER.error(
-                            "Failed to read a permitted address entry with regex: " + value, e);
+                            "Failed to read a permitted address entry with regex: {}", value, e);
                 }
             } else {
                 addr = new DomainMatcher(value);
@@ -336,7 +368,7 @@ public class OptionsParamApi extends AbstractParam {
 
         addrsEnabled.trimToSize();
 
-        if (permittedAddresses.size() == 0) {
+        if (permittedAddresses.isEmpty()) {
             // None specified - add in the defaults (which can then be disabled)
             DomainMatcher addr = new DomainMatcher("127.0.0.1");
             permittedAddresses.add(addr);
@@ -379,5 +411,98 @@ public class OptionsParamApi extends AbstractParam {
     public void setConfirmRemovePermittedAddress(boolean confirmRemove) {
         this.confirmRemovePermittedAddress = confirmRemove;
         getConfig().setProperty(CONFIRM_REMOVE_ADDRESS, confirmRemovePermittedAddress);
+    }
+
+    private void loadPersistentCallBacks() {
+        List<HierarchicalConfiguration> fields =
+                ((HierarchicalConfiguration) getConfig()).configurationsAt(CALLBACK_KEY);
+
+        persistentCallBacks = new HashMap<>(fields.size());
+
+        for (HierarchicalConfiguration sub : fields) {
+            String cbUrl = sub.getString(CALLBACK_URL_KEY, "");
+            if (cbUrl.isEmpty()) {
+                LOGGER.warn("Failed to read a callback entry, required url is empty.");
+                continue;
+            }
+            String cbPrefix = sub.getString(CALLBACK_PREFIX_KEY, null);
+            if (cbPrefix == null) {
+                LOGGER.warn("Failed to read a callback entry, required prefix is empty.");
+                continue;
+            }
+            persistentCallBacks.put(cbUrl, cbPrefix);
+        }
+    }
+
+    private void savePersistentCallBacks() {
+        ((HierarchicalConfiguration) getConfig()).clearTree(CALLBACK_KEY);
+
+        int i = 0;
+        for (Entry<String, String> entry : persistentCallBacks.entrySet()) {
+            String elementBaseKey = CALLBACK_KEY + "(" + i + ").";
+            getConfig().setProperty(elementBaseKey + CALLBACK_URL_KEY, entry.getKey());
+            getConfig().setProperty(elementBaseKey + CALLBACK_PREFIX_KEY, entry.getValue());
+            i++;
+        }
+        try {
+            getConfig().save();
+        } catch (ConfigurationException e) {
+            LOGGER.error(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Add a callback which persists over ZAP restarts
+     *
+     * @param url the callback URL
+     * @param prefix the prefix of the APIImplementor
+     * @since 2.12.0
+     */
+    public void addPersistantCallBack(String url, String prefix) {
+        this.persistentCallBacks.put(url, prefix);
+        savePersistentCallBacks();
+    }
+
+    /**
+     * Remove a callback which persists over ZAP restarts
+     *
+     * @param url a callback URL returned from addPersistantCallBack
+     * @return the prefix associated with the callback URL
+     * @since 2.12.0
+     */
+    public String removePersistantCallBack(String url) {
+        String value = this.persistentCallBacks.remove(url);
+        savePersistentCallBacks();
+        return value;
+    }
+
+    /**
+     * Returns a map of persistent callbacks (which persist over ZAP restarts)
+     *
+     * @return a Map of callback URL to implementor prefixes
+     * @since 2.12.0
+     */
+    public Map<String, String> getPersistentCallBacks() {
+        return this.persistentCallBacks;
+    }
+
+    public boolean isFileTransferAllowed() {
+        return !disableKey && fileTransferAllowed;
+    }
+
+    public void setFileTransferAllowed(boolean fileTransferAllowed) {
+        if (!disableKey) {
+            this.fileTransferAllowed = fileTransferAllowed;
+            getConfig().setProperty(FILE_TRANSFER, fileTransferAllowed);
+        }
+    }
+
+    public void setTransferDir(String transferDir) {
+        this.transferDir = transferDir;
+        getConfig().setProperty(TRANSFER_DIR, transferDir);
+    }
+
+    public String getTransferDir() {
+        return transferDir;
     }
 }

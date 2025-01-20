@@ -48,6 +48,7 @@ import org.zaproxy.zap.view.ZapMenuItem;
  *
  * @author Psiinon
  */
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class ExtensionLog4j extends ExtensionAdaptor {
 
     private static final String NAME = "ExtensionLog4j";
@@ -172,6 +173,7 @@ public class ExtensionLog4j extends ExtensionAdaptor {
     private static class ResetCounterOnSessionChange implements SessionChangedListener {
         /** Keep track of errors logged while the session changes. */
         private int previousCount;
+
         /** Do not reset the counter if ZAP is starting. */
         private boolean starting;
 

@@ -41,6 +41,9 @@
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2019/12/13 Handle proxy port conflict at startup (issue 2016).
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2022/02/09 Deprecate the class.
+// ZAP: 2022/05/20 Address deprecation warnings with ConnectionParam.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
 package org.parosproxy.paros.core.proxy;
 
 import java.io.IOException;
@@ -61,11 +64,13 @@ import org.apache.commons.httpclient.URI;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
-import org.parosproxy.paros.network.ConnectionParam;
-import org.parosproxy.paros.network.HttpUtil;
 import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.PersistentConnectionListener;
 
+/**
+ * @deprecated (2.12.0) Use the network add-on instead.
+ */
+@Deprecated
 public class ProxyServer implements Runnable {
 
     protected Thread thread = null;
@@ -73,7 +78,8 @@ public class ProxyServer implements Runnable {
     protected ServerSocket proxySocket = null;
     protected boolean isProxyRunning = false;
     protected ProxyParam proxyParam = new ProxyParam();
-    protected ConnectionParam connectionParam = new ConnectionParam();
+    protected org.parosproxy.paros.network.ConnectionParam connectionParam =
+            new org.parosproxy.paros.network.ConnectionParam();
     protected Vector<ProxyListener> listenerList = new Vector<>();
     protected Vector<OverrideMessageProxyListener> overrideListeners = new Vector<>();
     protected Vector<PersistentConnectionListener> persistentConnectionListenerList =
@@ -90,12 +96,16 @@ public class ProxyServer implements Runnable {
     private String threadName = "ZAP-ProxyServer";
     private boolean shouldPrompt = false;
 
-    /** @return Returns the enableCacheProcessing. */
+    /**
+     * @return Returns the enableCacheProcessing.
+     */
     public boolean isEnableCacheProcessing() {
         return enableCacheProcessing;
     }
 
-    /** @param enableCacheProcessing The enableCacheProcessing to set. */
+    /**
+     * @param enableCacheProcessing The enableCacheProcessing to set.
+     */
     public void setEnableCacheProcessing(boolean enableCacheProcessing) {
         this.enableCacheProcessing = enableCacheProcessing;
 
@@ -104,7 +114,9 @@ public class ProxyServer implements Runnable {
         }
     }
 
-    /** @return Returns the serialize. */
+    /**
+     * @return Returns the serialize.
+     */
     public boolean isSerialize() {
         return serialize;
     }
@@ -128,11 +140,11 @@ public class ProxyServer implements Runnable {
         return proxyParam;
     }
 
-    public void setConnectionParam(ConnectionParam connection) {
+    public void setConnectionParam(org.parosproxy.paros.network.ConnectionParam connection) {
         connectionParam = connection;
     }
 
-    public ConnectionParam getConnectionParam() {
+    public org.parosproxy.paros.network.ConnectionParam getConnectionParam() {
         return connectionParam;
     }
 
@@ -291,7 +303,7 @@ public class ProxyServer implements Runnable {
         }
 
         isProxyRunning = false;
-        HttpUtil.closeServerSocket(proxySocket);
+        org.parosproxy.paros.network.HttpUtil.closeServerSocket(proxySocket);
 
         try {
             thread.join(); // (PORT_TIME_OUT);
@@ -446,7 +458,9 @@ public class ProxyServer implements Runnable {
         return ProxyThread.isAnyProxyThreadRunning();
     }
 
-    /** @param serialize The serialize to set. */
+    /**
+     * @param serialize The serialize to set.
+     */
     public void setSerialize(boolean serialize) {
         this.serialize = serialize;
     }
@@ -474,9 +488,7 @@ public class ProxyServer implements Runnable {
             for (Pattern p : excludeUrls) {
                 if (p.matcher(uriString).matches()) {
                     ignore = true;
-                    if (log.isDebugEnabled()) {
-                        log.debug("URL excluded: " + uriString + " Regex: " + p.pattern());
-                    }
+                    log.debug("URL excluded: {} Regex: {}", uriString, p.pattern());
 
                     break;
                 }
@@ -499,7 +511,7 @@ public class ProxyServer implements Runnable {
     private synchronized void createListenersComparator() {
         if (listenersComparator == null) {
             listenersComparator =
-                    new Comparator<ArrangeableProxyListener>() {
+                    new Comparator<>() {
                         @Override
                         public int compare(
                                 ArrangeableProxyListener o1, ArrangeableProxyListener o2) {

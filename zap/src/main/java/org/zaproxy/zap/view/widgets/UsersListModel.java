@@ -23,10 +23,11 @@ import javax.swing.AbstractListModel;
 import javax.swing.ComboBoxModel;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.zaproxy.zap.extension.users.UsersTableModel;
 import org.zaproxy.zap.users.User;
 
+@SuppressWarnings("serial")
 class UsersListModel extends AbstractListModel<User> implements ComboBoxModel<User> {
 
     private static final long serialVersionUID = 5648260449088479312L;

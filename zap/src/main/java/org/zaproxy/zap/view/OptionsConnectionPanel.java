@@ -28,11 +28,14 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.OptionsParam;
-import org.parosproxy.paros.network.ConnectionParam;
 import org.parosproxy.paros.view.AbstractParamPanel;
 import org.zaproxy.zap.utils.FontUtils;
 import org.zaproxy.zap.utils.ZapTextField;
 
+/**
+ * @deprecated (2.12.0) No longer in use.
+ */
+@Deprecated
 public class OptionsConnectionPanel extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
@@ -168,6 +171,7 @@ public class OptionsConnectionPanel extends AbstractParamPanel {
         }
         return panelProxyAuth;
     }
+
     /**
      * This method initializes panelProxyChain
      *
@@ -201,6 +205,7 @@ public class OptionsConnectionPanel extends AbstractParamPanel {
         }
         return panelProxyChain;
     }
+
     /** This method initializes this */
     private void initialize() {
         this.setLayout(new CardLayout());
@@ -212,7 +217,8 @@ public class OptionsConnectionPanel extends AbstractParamPanel {
     public void initParam(Object obj) {
 
         OptionsParam optionsParam = (OptionsParam) obj;
-        ConnectionParam connectionParam = optionsParam.getConnectionParam();
+        org.parosproxy.paros.network.ConnectionParam connectionParam =
+                optionsParam.getConnectionParam();
 
         // set Proxy Chain parameters
         txtProxyChainRealm.setText(connectionParam.getProxyChainRealm());
@@ -228,7 +234,8 @@ public class OptionsConnectionPanel extends AbstractParamPanel {
     public void saveParam(Object obj) throws Exception {
 
         OptionsParam optionsParam = (OptionsParam) obj;
-        ConnectionParam connectionParam = optionsParam.getConnectionParam();
+        org.parosproxy.paros.network.ConnectionParam connectionParam =
+                optionsParam.getConnectionParam();
 
         connectionParam.setProxyChainRealm(txtProxyChainRealm.getText());
         connectionParam.setProxyChainUserName(txtProxyChainUserName.getText());

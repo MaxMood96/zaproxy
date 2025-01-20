@@ -33,7 +33,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.Set;
 import java.util.stream.Collectors;
+import org.parosproxy.paros.network.HttpRequestHeader;
 
 public class PythonAPIGenerator extends AbstractAPIGenerator {
 
@@ -64,6 +66,15 @@ public class PythonAPIGenerator extends AbstractAPIGenerator {
                     + "This file was automatically generated.\n"
                     + "\"\"\"\n\n";
 
+    private static final Map<String, Set<String>> NON_WRAPPED_API_ELEMENTS =
+            Map.of(
+                    "automation",
+                    Set.of("planProgress"),
+                    "stats",
+                    Set.of("stats"),
+                    "users",
+                    Set.of("getUserById"));
+
     /** Map any names which are reserved in python to something legal */
     private static final Map<String, String> nameMap;
 
@@ -84,18 +95,6 @@ public class PythonAPIGenerator extends AbstractAPIGenerator {
 
     public PythonAPIGenerator(String path, boolean optional, ResourceBundle resourceBundle) {
         super(path, optional, resourceBundle);
-    }
-
-    /**
-     * Generates the API client files of the given API implementors.
-     *
-     * @param implementors the implementors
-     * @throws IOException if an error occurred while generating the APIs.
-     * @deprecated (2.6.0) Use {@link #generateAPIFiles(List)} instead.
-     */
-    @Deprecated
-    public void generatePythonFiles(List<ApiImplementor> implementors) throws IOException {
-        this.generateAPIFiles(implementors);
     }
 
     private void generatePythonElement(
@@ -161,17 +160,6 @@ public class PythonAPIGenerator extends AbstractAPIGenerator {
                             .map(name -> "'" + name + "': " + name.toLowerCase(Locale.ROOT))
                             .collect(Collectors.joining(", "));
             reqParams.append(mandatoryParameters);
-            if (type.equals(ACTION_ENDPOINT) || type.equals(OTHER_ENDPOINT)) {
-                // Always add the API key - we've no way of knowing if it will be required or not
-                if (!mandatoryParameters.isEmpty()) {
-                    reqParams.append(", ");
-                }
-                reqParams
-                        .append("'")
-                        .append(API.API_KEY_PARAM)
-                        .append("': ")
-                        .append(API.API_KEY_PARAM);
-            }
             reqParams.append("}");
 
             List<ApiParameter> optionalParameters =
@@ -193,11 +181,12 @@ public class PythonAPIGenerator extends AbstractAPIGenerator {
             }
         }
 
-        if (type.equals(OTHER_ENDPOINT)) {
-            out.write("        return (");
-        } else {
-            out.write("        return six.next(six.itervalues(");
+        boolean unwrap = !type.equals(OTHER_ENDPOINT) && isUnwrapRequired(component, element);
+        out.write("        return ");
+        if (unwrap) {
+            out.write("six.next(six.itervalues");
         }
+        out.write("(");
         out.write(
                 "self.zap."
                         + method
@@ -214,18 +203,28 @@ public class PythonAPIGenerator extends AbstractAPIGenerator {
         // , {'url': url}))
         if (hasParams) {
             out.write(", ");
+            String httpMethod = element.getDefaultMethod();
+            if (!HttpRequestHeader.GET.equalsIgnoreCase(httpMethod)) {
+                out.write("method=\"");
+                out.write(httpMethod);
+                out.write('"');
+                out.write(", body=");
+            }
             out.write(reqParams.toString());
             out.write(")");
-            if (!type.equals(OTHER_ENDPOINT)) {
-                out.write("))");
-            } else {
+            if (unwrap) {
                 out.write(")");
             }
-        } else if (!type.equals(OTHER_ENDPOINT)) {
-            out.write(")))");
-        } else {
-            out.write(")");
+        } else if (unwrap) {
+            out.write("))");
         }
+        out.write(")");
+    }
+
+    private static boolean isUnwrapRequired(String component, ApiElement element) {
+        return !NON_WRAPPED_API_ELEMENTS
+                .getOrDefault(component, Set.of())
+                .contains(element.getName());
     }
 
     @Override

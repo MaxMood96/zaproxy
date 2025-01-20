@@ -22,20 +22,21 @@ package org.zaproxy.zap.extension.pscan;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import javax.swing.JCheckBox;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.SortOrder;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.OptionsParam;
 import org.parosproxy.paros.view.AbstractParamPanel;
 import org.parosproxy.paros.view.View;
-import org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner;
+import org.zaproxy.zap.utils.ZapHtmlLabel;
 import org.zaproxy.zap.view.AbstractMultipleOptionsTablePanel;
 
+@SuppressWarnings({"removal", "serial"})
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class OptionsPassiveScan extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
-    private PassiveScannerList passiveScanners = null;
+    private PassiveScannerList passiveScanners;
 
     private ScannersMultipleOptionsPanel scannersOptionsPanel;
 
@@ -43,7 +44,7 @@ public class OptionsPassiveScan extends AbstractParamPanel {
 
     public OptionsPassiveScan(PassiveScannerList scannerList) {
         super();
-        this.passiveScanners = scannerList;
+        passiveScanners = scannerList;
         initialize();
     }
 
@@ -58,26 +59,13 @@ public class OptionsPassiveScan extends AbstractParamPanel {
         gbc.anchor = GridBagConstraints.LINE_START;
         gbc.fill = GridBagConstraints.BOTH;
 
-        this.add(new JLabel(Constant.messages.getString("pscan.options.header")), gbc);
+        this.add(new ZapHtmlLabel(Constant.messages.getString("pscan.options.header")), gbc);
 
         scannersOptionsPanel = new ScannersMultipleOptionsPanel(getTableModel());
 
         gbc.weighty = 1.0;
         this.add(scannersOptionsPanel, gbc);
-
-        // gbc.weighty = 0.0;
     }
-
-    //	private List<RegexAutoTagScanner> getRegexAutoTags(List<PassiveScanner> scannerList) {
-    //		List<RegexAutoTagScanner> ratsList = new ArrayList<>();
-    //		for (PassiveScanner scanner : scannerList) {
-    //			if (scanner instanceof RegexAutoTagScanner) {
-    //				ratsList.add((RegexAutoTagScanner)scanner);
-    //			}
-    //		}
-    //
-    //		return ratsList;
-    //	}
 
     @Override
     public void initParam(Object obj) {
@@ -95,7 +83,6 @@ public class OptionsPassiveScan extends AbstractParamPanel {
         passiveScanParam.setAutoTagScanners(getTableModel().getElements());
         passiveScanParam.setConfirmRemoveAutoTagScanner(
                 !scannersOptionsPanel.isRemoveWithoutConfirmation());
-
         passiveScanners.setAutoTagScanners(passiveScanParam.getAutoTagScanners());
     }
 
@@ -117,7 +104,8 @@ public class OptionsPassiveScan extends AbstractParamPanel {
     }
 
     private static class ScannersMultipleOptionsPanel
-            extends AbstractMultipleOptionsTablePanel<RegexAutoTagScanner> {
+            extends AbstractMultipleOptionsTablePanel<
+                    org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner> {
 
         private static final long serialVersionUID = 8762085355395403532L;
 
@@ -149,7 +137,7 @@ public class OptionsPassiveScan extends AbstractParamPanel {
         }
 
         @Override
-        public RegexAutoTagScanner showAddDialogue() {
+        public org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner showAddDialogue() {
             if (addDialog == null) {
                 addDialog = new DialogAddAutoTagScanner(View.getSingleton().getOptionsDialog(null));
                 addDialog.pack();
@@ -157,14 +145,16 @@ public class OptionsPassiveScan extends AbstractParamPanel {
             addDialog.setScanners(model.getElements());
             addDialog.setVisible(true);
 
-            RegexAutoTagScanner app = addDialog.getScanner();
+            org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner app =
+                    addDialog.getScanner();
             addDialog.clear();
 
             return app;
         }
 
         @Override
-        public RegexAutoTagScanner showModifyDialogue(RegexAutoTagScanner e) {
+        public org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner showModifyDialogue(
+                org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner e) {
             if (modifyDialog == null) {
                 modifyDialog =
                         new DialogModifyAutoTagScanner(View.getSingleton().getOptionsDialog(null));
@@ -174,7 +164,8 @@ public class OptionsPassiveScan extends AbstractParamPanel {
             modifyDialog.setApp(e);
             modifyDialog.setVisible(true);
 
-            RegexAutoTagScanner app = modifyDialog.getScanner();
+            org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner app =
+                    modifyDialog.getScanner();
             modifyDialog.clear();
 
             if (!app.equals(e)) {
@@ -185,7 +176,8 @@ public class OptionsPassiveScan extends AbstractParamPanel {
         }
 
         @Override
-        public boolean showRemoveDialogue(RegexAutoTagScanner e) {
+        public boolean showRemoveDialogue(
+                org.zaproxy.zap.extension.pscan.scanner.RegexAutoTagScanner e) {
             JCheckBox removeWithoutConfirmationCheckBox =
                     new JCheckBox(REMOVE_DIALOG_CHECKBOX_LABEL);
             Object[] messages = {REMOVE_DIALOG_TEXT, " ", removeWithoutConfirmationCheckBox};

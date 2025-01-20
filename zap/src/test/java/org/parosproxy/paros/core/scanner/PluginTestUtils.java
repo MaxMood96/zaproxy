@@ -20,6 +20,7 @@
 package org.parosproxy.paros.core.scanner;
 
 import java.util.Date;
+import java.util.Map;
 import org.apache.commons.configuration.Configuration;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.control.AddOn;
@@ -344,14 +345,6 @@ class PluginTestUtils {
         }
 
         @Override
-        public int getDelayInMs() {
-            return 0;
-        }
-
-        @Override
-        public void setDelayInMs(int delay) {}
-
-        @Override
         public AlertThreshold getAlertThreshold(boolean incDefault) {
             return null;
         }
@@ -434,6 +427,16 @@ class PluginTestUtils {
 
         @Override
         public Status getStatus() {
+            return null;
+        }
+
+        @Override
+        public Map<String, String> getAlertTags() {
+            return null;
+        }
+
+        @Override
+        public String getDisplayName() {
             return null;
         }
     }

@@ -47,6 +47,7 @@ import org.zaproxy.zap.utils.DisplayUtils;
 import org.zaproxy.zap.view.LayoutHelper;
 import org.zaproxy.zap.view.panels.TableFilterPanel;
 
+@Deprecated(forRemoval = true, since = "2.16.0")
 public class PolicyPassiveScanPanel extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
@@ -146,7 +147,7 @@ public class PolicyPassiveScanPanel extends AbstractParamPanel {
         if (applyToThresholdTarget == null) {
             applyToThresholdTarget = new JComboBox<>();
             applyToThresholdTarget.addItem(
-                    Constant.messages.getString("ascan.policy.table.quality.all"));
+                    Constant.messages.getString("ascan.policy.table.status.all"));
             View view = View.getSingleton();
             applyToThresholdTarget.addItem(view.getStatusUI(AddOn.Status.release).toString());
             applyToThresholdTarget.addItem(view.getStatusUI(AddOn.Status.beta).toString());
@@ -169,7 +170,7 @@ public class PolicyPassiveScanPanel extends AbstractParamPanel {
     }
 
     private void applyThreshold(AlertThreshold threshold, String target) {
-        if (target.equals(Constant.messages.getString("ascan.policy.table.quality.all"))) {
+        if (target.equals(Constant.messages.getString("ascan.policy.table.status.all"))) {
             this.getPassiveScanTableModel().applyThresholdToAll(threshold);
         } else {
             this.getPassiveScanTableModel().applyThreshold(threshold, target);

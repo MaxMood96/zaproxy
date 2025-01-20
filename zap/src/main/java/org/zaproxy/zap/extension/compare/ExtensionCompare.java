@@ -85,7 +85,7 @@ public class ExtensionCompare extends ExtensionAdaptor
     private static final String CRLF = "\r\n";
     private JMenuItem menuCompare = null;
 
-    private static Logger log = LogManager.getLogger(ExtensionCompare.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExtensionCompare.class);
 
     public ExtensionCompare() {
         super(NAME);
@@ -122,7 +122,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                             }
                         });
             } catch (Exception e) {
-                log.warn(e.getMessage(), e);
+                LOGGER.warn(e.getMessage(), e);
             }
         }
     }
@@ -170,7 +170,8 @@ public class ExtensionCompare extends ExtensionAdaptor
                         HistoryReference.TYPE_PROXIED,
                         HistoryReference.TYPE_ZAP_USER,
                         HistoryReference.TYPE_SPIDER,
-                        HistoryReference.TYPE_SPIDER_AJAX);
+                        HistoryReference.TYPE_SPIDER_AJAX,
+                        HistoryReference.TYPE_CLIENT_SPIDER);
 
         for (Integer hId : hIds) {
             RecordHistory recH = th.read(hId);
@@ -231,7 +232,7 @@ public class ExtensionCompare extends ExtensionAdaptor
 
                 // TODO support other implementations in the future
                 ParosDatabase db = new ParosDatabase();
-                db.setDatabaseParam(new DatabaseParam());
+                db.setDatabaseOptions(new DatabaseParam());
                 db.open(file.getAbsolutePath());
 
                 Map<String, String> curMap = new HashMap<>();
@@ -324,7 +325,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                             try (InputStream is =
                                     ExtensionCompare.class.getResourceAsStream(path)) {
                                 if (is == null) {
-                                    log.error("Bundled file not found: " + path);
+                                    LOGGER.error("Bundled file not found: {}", path);
                                     return;
                                 }
                                 stringToHtml(
@@ -335,14 +336,14 @@ public class ExtensionCompare extends ExtensionAdaptor
                         }
 
                         if (Files.notExists(outputFile.toPath())) {
-                            log.info("Not opening report, does not exist: " + outputFile);
+                            LOGGER.info("Not opening report, does not exist: {}", outputFile);
                             return;
                         }
 
                         try {
                             DesktopUtils.openUrlInBrowser(outputFile.toURI());
                         } catch (Exception e) {
-                            log.error(e.getMessage(), e);
+                            LOGGER.error(e.getMessage(), e);
                             getView()
                                     .showMessageDialog(
                                             Constant.messages.getString(
@@ -351,12 +352,12 @@ public class ExtensionCompare extends ExtensionAdaptor
                         }
 
                     } catch (Exception e1) {
-                        log.warn(e1.getMessage(), e1);
+                        LOGGER.warn(e1.getMessage(), e1);
                     }
                 }
 
             } catch (Exception e) {
-                log.warn(e.getMessage(), e);
+                LOGGER.warn(e.getMessage(), e);
             }
         }
     }
@@ -395,7 +396,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                     | SAXException
                     | ParserConfigurationException
                     | IOException e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
                 // Save the xml for diagnosing the problem
                 BufferedWriter bw = null;
                 try {
@@ -405,7 +406,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                                     StandardCharsets.UTF_8);
                     bw.write(inxml);
                 } catch (IOException e2) {
-                    log.error("Failed to write debug XML file", e);
+                    LOGGER.error("Failed to write debug XML file", e);
                     return new File(outfilename);
                 } finally {
                     try {
@@ -437,7 +438,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                 }
 
             } catch (IOException e) {
-                log.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
             // Remove the temporary file
             outfile.delete();
@@ -451,7 +452,7 @@ public class ExtensionCompare extends ExtensionAdaptor
                                 new File(outfilename).toPath(), StandardCharsets.UTF_8);
                 bw.write(inxml);
             } catch (IOException e2) {
-                log.error(e2.getMessage(), e2);
+                LOGGER.error(e2.getMessage(), e2);
             } finally {
                 try {
                     if (bw != null) {

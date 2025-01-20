@@ -25,6 +25,7 @@ import java.util.List;
 import org.parosproxy.paros.Constant;
 import org.zaproxy.zap.view.AbstractMultipleOptionsBaseTableModel;
 
+@SuppressWarnings("serial")
 public class OptionsAutoupdateDirsTableModel extends AbstractMultipleOptionsBaseTableModel<File> {
 
     private static final long serialVersionUID = 1L;
@@ -46,7 +47,9 @@ public class OptionsAutoupdateDirsTableModel extends AbstractMultipleOptionsBase
         return tokens;
     }
 
-    /** @param files The files to set. */
+    /**
+     * @param files The files to set.
+     */
     public void setFiles(List<File> files) {
         this.tokens = new ArrayList<>(tokens.size());
 

@@ -33,7 +33,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.KeyStroke;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -44,6 +44,7 @@ import org.zaproxy.zap.view.AbstractFormDialog;
 import org.zaproxy.zap.view.LayoutHelper;
 
 /** The Dialog for adding and configuring a new {@link DefaultCustomPage}. */
+@SuppressWarnings("serial")
 class DialogAddCustomPage extends AbstractFormDialog {
 
     /** The Constant serialVersionUID. */

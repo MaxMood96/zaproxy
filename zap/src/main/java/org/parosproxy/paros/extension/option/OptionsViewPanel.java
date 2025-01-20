@@ -38,6 +38,9 @@
 // ZAP: 2020/03/25 Remove hardcoded colour in titled border (Issue 5542).
 // ZAP: 2020/12/03 Add constants for indexes of possible break buttons locations
 // ZAP: 2021/05/14 Remove redundant type arguments and empty statement.
+// ZAP: 2021/09/16 Add support for enabling app integration in containers
+// ZAP: 2022/02/25 Remove options no longer in use.
+// ZAP: 2022/08/05 Address warns with Java 18 (Issue 7389).
 package org.parosproxy.paros.extension.option;
 
 import java.awt.BorderLayout;
@@ -46,6 +49,7 @@ import java.awt.Component;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridBagLayout;
+import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -55,6 +59,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 import javax.swing.BorderFactory;
 import javax.swing.DefaultListCellRenderer;
+import javax.swing.ImageIcon;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -64,8 +69,6 @@ import javax.swing.JScrollPane;
 import javax.swing.UIManager;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.border.TitledBorder;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import javax.swing.plaf.basic.BasicComboBoxRenderer;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.Model;
@@ -73,8 +76,6 @@ import org.parosproxy.paros.model.OptionsParam;
 import org.parosproxy.paros.view.AbstractParamPanel;
 import org.parosproxy.paros.view.WorkbenchPanel;
 import org.zaproxy.zap.extension.brk.BreakpointsParam;
-import org.zaproxy.zap.extension.httppanel.view.largerequest.LargeRequestUtil;
-import org.zaproxy.zap.extension.httppanel.view.largeresponse.LargeResponseUtil;
 import org.zaproxy.zap.utils.FontUtils;
 import org.zaproxy.zap.utils.TimeStampUtils;
 import org.zaproxy.zap.utils.ZapNumberSpinner;
@@ -82,6 +83,7 @@ import org.zaproxy.zap.view.LayoutHelper;
 
 // ZAP: 2011: added more configuration options
 
+@SuppressWarnings("serial")
 public class OptionsViewPanel extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
@@ -95,6 +97,8 @@ public class OptionsViewPanel extends AbstractParamPanel {
             Constant.messages.getString("timestamp.format.timeonly");
     // ISO Standards compliant format
     private static final String TIME_STAMP_FORMAT_ISO8601 = "yyyy-MM-dd'T'HH:mm:ssZ";
+    private static final ImageIcon EXAMPLE_ICON =
+            new ImageIcon(OptionsViewPanel.class.getResource("/resource/icon/16/032.png"));
 
     public enum BreakLocation {
         TOOL_BAR_ONLY(0),
@@ -124,15 +128,13 @@ public class OptionsViewPanel extends AbstractParamPanel {
     private JCheckBox chkShowSplashScreen = null;
     private JCheckBox scaleImages = null;
     private JCheckBox showLocalConnectRequestsCheckbox;
+    private JCheckBox allowAppsInContainers = null;
 
     private JComboBox<String> brkPanelViewSelect = null;
     private JComboBox<String> displaySelect = null;
     private JComboBox<ResponsePanelPositionUI> responsePanelPositionComboBox;
     private JComboBox<String> timeStampsFormatSelect = null;
     private JComboBox<LookAndFeelInfoUi> lookAndFeel = null;
-
-    private ZapNumberSpinner largeRequestSize = null;
-    private ZapNumberSpinner largeResponseSize = null;
 
     private JLabel brkPanelViewLabel = null;
     private JLabel advancedViewLabel = null;
@@ -145,8 +147,6 @@ public class OptionsViewPanel extends AbstractParamPanel {
     private JLabel outputTabTimeStampLabel = null;
     private JLabel outputTabTimeStampExampleLabel = null;
     private JLabel showSplashScreenLabel = null;
-    private JLabel largeRequestLabel = null;
-    private JLabel largeResponseLabel = null;
     private JLabel lookAndFeelLabel = null;
     private Map<FontUtils.FontType, JLabel> fontLabels = new EnumMap<>(FontUtils.FontType.class);
     private Map<FontUtils.FontType, ZapNumberSpinner> fontSizes =
@@ -155,6 +155,8 @@ public class OptionsViewPanel extends AbstractParamPanel {
             new EnumMap<>(FontUtils.FontType.class);
     private Map<FontUtils.FontType, String> fontTypeLabels =
             new EnumMap<>(FontUtils.FontType.class);
+    private ZapNumberSpinner iconSize;
+    private JLabel exampleIcon;
 
     public OptionsViewPanel() {
         super();
@@ -223,10 +225,6 @@ public class OptionsViewPanel extends AbstractParamPanel {
                     new JLabel(
                             Constant.messages.getString(
                                     "options.display.timestamp.format.outputtabtimestamps.label"));
-            largeRequestLabel =
-                    new JLabel(Constant.messages.getString("view.options.label.largeRequestSize"));
-            largeResponseLabel =
-                    new JLabel(Constant.messages.getString("view.options.label.largeResponseSize"));
             lookAndFeelLabel =
                     new JLabel(Constant.messages.getString("view.options.label.lookandfeel"));
             outputTabTimeStampExampleLabel =
@@ -260,24 +258,6 @@ public class OptionsViewPanel extends AbstractParamPanel {
                     LayoutHelper.getGBC(0, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
             panelMisc.add(
                     getBrkPanelViewSelect(),
-                    LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
-
-            row++;
-            largeRequestLabel.setLabelFor(getLargeRequestSize());
-            panelMisc.add(
-                    largeRequestLabel,
-                    LayoutHelper.getGBC(0, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
-            panelMisc.add(
-                    getLargeRequestSize(),
-                    LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
-
-            row++;
-            largeResponseLabel.setLabelFor(getLargeResponseSize());
-            panelMisc.add(
-                    largeResponseLabel,
-                    LayoutHelper.getGBC(0, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
-            panelMisc.add(
-                    getLargeResponseSize(),
                     LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
 
             row++;
@@ -355,6 +335,19 @@ public class OptionsViewPanel extends AbstractParamPanel {
                     LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
 
             row++;
+            JLabel allowAppIntegrationInContainersLabel =
+                    new JLabel(
+                            Constant.messages.getString(
+                                    "view.options.label.allowAppsInContainers"));
+            allowAppIntegrationInContainersLabel.setLabelFor(getAllowAppsInContainers());
+            panelMisc.add(
+                    allowAppIntegrationInContainersLabel,
+                    LayoutHelper.getGBC(0, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            panelMisc.add(
+                    getAllowAppsInContainers(),
+                    LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+
+            row++;
             outputTabTimeStampLabel.setLabelFor(getChkOutputTabTimeStamps());
             panelMisc.add(
                     outputTabTimeStampLabel,
@@ -420,15 +413,49 @@ public class OptionsViewPanel extends AbstractParamPanel {
             }
 
             row++;
+            JPanel iconPanel = new JPanel();
+            iconPanel.setLayout(new GridBagLayout());
+            iconPanel.setBorder(
+                    BorderFactory.createTitledBorder(
+                            null,
+                            Constant.messages.getString("view.options.label.icons"),
+                            TitledBorder.DEFAULT_JUSTIFICATION,
+                            TitledBorder.DEFAULT_POSITION,
+                            FontUtils.getFont(FontUtils.Size.standard)));
+            panelMisc.add(
+                    iconPanel,
+                    LayoutHelper.getGBC(0, row, 2, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            int iconPanelRow = -1;
             JLabel scaleImagesLabel =
                     new JLabel(Constant.messages.getString("view.options.label.scaleImages"));
             scaleImagesLabel.setLabelFor(getScaleImages());
-            panelMisc.add(
+            iconPanel.add(
                     scaleImagesLabel,
-                    LayoutHelper.getGBC(0, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
-            panelMisc.add(
+                    LayoutHelper.getGBC(
+                            0, ++iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            iconPanel.add(
                     getScaleImages(),
-                    LayoutHelper.getGBC(1, row, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+                    LayoutHelper.getGBC(1, iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            JLabel iconSizeLabel =
+                    new JLabel(Constant.messages.getString("view.options.label.iconSize"));
+            iconSizeLabel.setLabelFor(getIconSize());
+            iconPanel.add(
+                    iconSizeLabel,
+                    LayoutHelper.getGBC(
+                            0, ++iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            iconPanel.add(
+                    getIconSize(),
+                    LayoutHelper.getGBC(1, iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            JLabel iconExampleLabel =
+                    new JLabel(Constant.messages.getString("view.options.label.iconExample"));
+            iconExampleLabel.setLabelFor(getIconExample());
+            iconPanel.add(
+                    iconExampleLabel,
+                    LayoutHelper.getGBC(
+                            0, ++iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
+            iconPanel.add(
+                    getIconExample(),
+                    LayoutHelper.getGBC(1, iconPanelRow, 1, 1.0D, new java.awt.Insets(2, 2, 2, 2)));
 
             row++;
             lookAndFeelLabel.setLabelFor(getLookAndFeelSelect());
@@ -612,22 +639,32 @@ public class OptionsViewPanel extends AbstractParamPanel {
         return showLocalConnectRequestsCheckbox;
     }
 
-    private ZapNumberSpinner getLargeRequestSize() {
-        if (largeRequestSize == null) {
-            largeRequestSize =
-                    new ZapNumberSpinner(
-                            -1, LargeRequestUtil.DEFAULT_MIN_CONTENT_LENGTH, Integer.MAX_VALUE);
+    private ZapNumberSpinner getIconSize() {
+        if (iconSize == null) {
+            iconSize = new ZapNumberSpinner(0, 16, 100);
+            iconSize.addChangeListener(
+                    e -> {
+                        int size = iconSize.getValue();
+                        if (size == 0) {
+                            size = 16;
+                        }
+                        getIconExample()
+                                .setIcon(
+                                        new ImageIcon(
+                                                EXAMPLE_ICON
+                                                        .getImage()
+                                                        .getScaledInstance(
+                                                                size, size, Image.SCALE_SMOOTH)));
+                    });
         }
-        return largeRequestSize;
+        return iconSize;
     }
 
-    private ZapNumberSpinner getLargeResponseSize() {
-        if (largeResponseSize == null) {
-            largeResponseSize =
-                    new ZapNumberSpinner(
-                            -1, LargeResponseUtil.DEFAULT_MIN_CONTENT_LENGTH, Integer.MAX_VALUE);
+    private JLabel getIconExample() {
+        if (exampleIcon == null) {
+            exampleIcon = new JLabel(EXAMPLE_ICON);
         }
-        return largeResponseSize;
+        return exampleIcon;
     }
 
     private ZapNumberSpinner initFontSize(FontUtils.FontType fontType) {
@@ -636,14 +673,15 @@ public class OptionsViewPanel extends AbstractParamPanel {
         if (!FontUtils.canChangeSize()) {
             fontSize.setEnabled(false);
         }
-        fontSize.addChangeListener(
-                new ChangeListener() {
-                    @Override
-                    public void stateChanged(ChangeEvent e) {
-                        // Show what the default font will look like
-                        setExampleFont(fontType);
-                    }
-                });
+        fontSize.addChangeListener(e -> setExampleFont(fontType));
+        if (fontType == FontUtils.FontType.general) {
+            fontSize.addChangeListener(
+                    e -> {
+                        if (getScaleImages().isSelected()) {
+                            getIconSize().setValue(fontSize.getValue());
+                        }
+                    });
+        }
         return fontSize;
     }
 
@@ -719,8 +757,23 @@ public class OptionsViewPanel extends AbstractParamPanel {
             if (!FontUtils.canChangeSize()) {
                 scaleImages.setEnabled(false);
             }
+            scaleImages.addActionListener(
+                    l -> {
+                        getIconSize().setEnabled(!scaleImages.isSelected());
+                        if (scaleImages.isSelected()) {
+                            getIconSize()
+                                    .setValue(getFontSize(FontUtils.FontType.general).getValue());
+                        }
+                    });
         }
         return scaleImages;
+    }
+
+    private JCheckBox getAllowAppsInContainers() {
+        if (allowAppsInContainers == null) {
+            allowAppsInContainers = new JCheckBox();
+        }
+        return allowAppsInContainers;
     }
 
     private JComboBox<LookAndFeelInfoUi> getLookAndFeelSelect() {
@@ -758,18 +811,19 @@ public class OptionsViewPanel extends AbstractParamPanel {
                 options.getViewParam().getOutputTabTimeStampsFormat());
         getShowLocalConnectRequestsCheckbox()
                 .setSelected(options.getViewParam().isShowLocalConnectRequests());
-        largeRequestSize.setValue(options.getViewParam().getLargeRequestSize());
-        largeResponseSize.setValue(options.getViewParam().getLargeResponseSize());
         for (FontUtils.FontType fontType : FontUtils.FontType.values()) {
             getFontSize(fontType).setValue(options.getViewParam().getFontSize(fontType));
             getFontName(fontType).setSelectedItem(options.getViewParam().getFontName(fontType));
         }
-
         getScaleImages().setSelected(options.getViewParam().isScaleImages());
+        getIconSize().setValue(options.getViewParam().getIconSize());
+
         String nameLaf = options.getViewParam().getLookAndFeelInfo().getName();
         selectItem(
                 getLookAndFeelSelect(),
                 item -> item.getLookAndFeelInfo().getName().equals(nameLaf));
+        getAllowAppsInContainers()
+                .setSelected(options.getViewParam().isAllowAppIntegrationInContainers());
     }
 
     private static <T> void selectItem(JComboBox<T> comboBox, Predicate<T> predicate) {
@@ -811,18 +865,19 @@ public class OptionsViewPanel extends AbstractParamPanel {
                         (String) getTimeStampsFormatSelect().getSelectedItem());
         options.getViewParam()
                 .setShowLocalConnectRequests(getShowLocalConnectRequestsCheckbox().isSelected());
-        options.getViewParam().setLargeRequestSize(getLargeRequestSize().getValue());
-        options.getViewParam().setLargeResponseSize(getLargeResponseSize().getValue());
         for (FontUtils.FontType fontType : FontUtils.FontType.values()) {
             options.getViewParam().setFontSize(fontType, getFontSize(fontType).getValue());
             options.getViewParam()
                     .setFontName(fontType, (String) getFontName(fontType).getSelectedItem());
         }
         options.getViewParam().setScaleImages(getScaleImages().isSelected());
+        options.getViewParam().setIconSize(getIconSize().getValue());
         options.getViewParam()
                 .setLookAndFeelInfo(
                         ((LookAndFeelInfoUi) getLookAndFeelSelect().getSelectedItem())
                                 .getLookAndFeelInfo());
+        options.getViewParam()
+                .setAllowAppIntegrationInContainers(getAllowAppsInContainers().isSelected());
     }
 
     @Override

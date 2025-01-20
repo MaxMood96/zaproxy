@@ -35,6 +35,10 @@
 // ZAP: 2019/12/13 Display the primary proxy details (host:port) in the footer (Issue 2016).
 // ZAP: 2020/09/29 Add support for dynamic Look and Feel switching (Issue 6201)
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2022/02/09 Remove method call no longer needed.
+// ZAP: 2022/02/26 Remove code deprecated in 2.5.0
+// ZAP: 2022/08/05 Address warns with Java 18 (Issue 7389).
+// ZAP: 2024/10/07 Add stats to main toolbar buttons (Issue 8375).
 package org.parosproxy.paros.view;
 
 import java.awt.CardLayout;
@@ -51,6 +55,7 @@ import javax.swing.BoxLayout;
 import javax.swing.ButtonGroup;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
 import javax.swing.UIManager;
@@ -64,10 +69,12 @@ import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.OptionsParam;
 import org.parosproxy.paros.model.Session;
 import org.zaproxy.zap.utils.DisplayUtils;
+import org.zaproxy.zap.utils.Stats;
 import org.zaproxy.zap.view.MainToolbarPanel;
 import org.zaproxy.zap.view.ZapToggleButton;
 import org.zaproxy.zap.view.widgets.PopupButton;
 
+@SuppressWarnings("serial")
 public class MainFrame extends AbstractFrame {
 
     private static final Logger LOGGER = LogManager.getLogger(MainFrame.class);
@@ -207,21 +214,6 @@ public class MainFrame extends AbstractFrame {
     private ZapToggleButton panelsResponsePanelPositionButton;
 
     private PopupButton lookAndFeelButton;
-
-    /**
-     * @deprecated (2.5.0) Use {@link #MainFrame(OptionsParam, AbstractPanel, AbstractPanel)}
-     *     instead.
-     */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public MainFrame(int displayOption) {
-        this(
-                Model.getSingleton().getOptionsParam(),
-                View.getSingleton().getRequestPanel(),
-                View.getSingleton().getResponsePanel());
-
-        changeDisplayOption(displayOption);
-    }
 
     /**
      * Constructs a {@code MainFrame} with the given options and request and response panels.
@@ -387,6 +379,7 @@ public class MainFrame extends AbstractFrame {
                         @Override
                         public void actionPerformed(ActionEvent e) {
                             View.getSingleton().showAllTabs();
+                            Stats.incCounter("stats.ui.maintoolbar.button.tabs.showall");
                         }
                     });
         }
@@ -409,6 +402,7 @@ public class MainFrame extends AbstractFrame {
                         @Override
                         public void actionPerformed(ActionEvent e) {
                             View.getSingleton().hideAllTabs();
+                            Stats.incCounter("stats.ui.maintoolbar.button.tabs.hideall");
                         }
                     });
         }
@@ -443,6 +437,7 @@ public class MainFrame extends AbstractFrame {
                                     .getOptionsParam()
                                     .getViewParam()
                                     .setShowTabNames(showTabNames);
+                            Stats.incCounter("stats.ui.maintoolbar.button.tabs.namesicons");
                             try {
                                 Model.getSingleton()
                                         .getOptionsParam()
@@ -578,6 +573,8 @@ public class MainFrame extends AbstractFrame {
                             for (UIManager.LookAndFeelInfo look : looks) {
                                 if (look.getName().equals(option)) {
                                     options.getViewParam().setLookAndFeelInfo(look);
+                                    Stats.incCounter(
+                                            "stats.ui.toolbar.laf." + option.replace(" ", ""));
                                 }
                             }
                         }
@@ -603,13 +600,6 @@ public class MainFrame extends AbstractFrame {
             mainFooterPanel = new MainFooterPanel();
         }
         return mainFooterPanel;
-    }
-
-    /** @deprecated (2.5.0) Use {@link #setWorkbenchLayout(WorkbenchPanel.Layout)} instead. */
-    @Deprecated
-    @SuppressWarnings("javadoc")
-    public void changeDisplayOption(int displayOption) {
-        setWorkbenchLayout(WorkbenchPanel.Layout.getLayout(displayOption));
     }
 
     /**
@@ -643,7 +633,6 @@ public class MainFrame extends AbstractFrame {
         setResponsePanelPosition(position);
 
         setShowTabNames(options.getViewParam().getShowTabNames());
-        getMainFooterPanel().optionsChanged();
     }
 
     /**
@@ -732,8 +721,26 @@ public class MainFrame extends AbstractFrame {
             return;
         }
 
-        responsePanelPosition = position;
+        if (getWorkbench().hasAnyDetachedRequestResponseTabs()
+                && View.getSingleton()
+                                .showConfirmDialog(
+                                        Constant.messages.getString(
+                                                "view.toolbar.messagePanelsPosition.confirmCloseDetached"))
+                        != JOptionPane.OK_OPTION) {
+            setResponsePanelPositionButtonSelected(responsePanelPosition);
+            return;
+        }
 
+        responsePanelPosition = position;
+        setResponsePanelPositionButtonSelected(position);
+
+        getWorkbench().closeAllDetachedRequestResponseTabs();
+        getWorkbench().setResponsePanelPosition(responsePanelPosition);
+        options.getViewParam().setResponsePanelPosition(responsePanelPosition.toString());
+    }
+
+    private void setResponsePanelPositionButtonSelected(
+            WorkbenchPanel.ResponsePanelPosition position) {
         switch (position) {
             case PANEL_ABOVE:
                 aboveResponsePanelPositionButton.setSelected(true);
@@ -748,9 +755,6 @@ public class MainFrame extends AbstractFrame {
             default:
                 tabsResponsePanelPositionButton.setSelected(true);
         }
-
-        getWorkbench().setResponsePanelPosition(responsePanelPosition);
-        options.getViewParam().setResponsePanelPosition(responsePanelPosition.toString());
     }
 
     /**
@@ -850,6 +854,7 @@ public class MainFrame extends AbstractFrame {
         @Override
         public void actionPerformed(ActionEvent evt) {
             setWorkbenchLayout(layout);
+            Stats.incCounter("stats.ui.maintoolbar.button.layout." + layout.name());
         }
     }
 
@@ -875,6 +880,7 @@ public class MainFrame extends AbstractFrame {
         @Override
         public void actionPerformed(ActionEvent e) {
             setResponsePanelPosition(position);
+            Stats.incCounter("stats.ui.maintoolbar.button.response." + position.name());
         }
     }
 }

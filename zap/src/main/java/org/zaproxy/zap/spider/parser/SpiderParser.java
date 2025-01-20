@@ -21,17 +21,21 @@ package org.zaproxy.zap.spider.parser;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import net.htmlparser.jericho.Source;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.network.HttpMessage;
-import org.zaproxy.zap.spider.URLCanonicalizer;
+import org.parosproxy.paros.network.HttpRequestHeader;
 
 /**
  * The Abstract Class SpiderParser is the base for parsers used by the spider. The main purpose of
  * these Parsers is to find links (uris) to resources in the provided content. Uses the Jericho
  * Library for parsing.
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
  */
+@Deprecated
 public abstract class SpiderParser {
 
     /** The listeners to spider parsing events. */
@@ -47,6 +51,23 @@ public abstract class SpiderParser {
             org.apache.log4j.Logger.getLogger(SpiderParser.class);
 
     private final Logger logger = LogManager.getLogger(getClass());
+
+    private org.zaproxy.zap.spider.SpiderParam spiderParam;
+
+    public SpiderParser() {}
+
+    public SpiderParser(org.zaproxy.zap.spider.SpiderParam spiderParam) {
+        this.spiderParam =
+                Objects.requireNonNull(spiderParam, "Parameter spiderParam must not be null.");
+    }
+
+    public void setSpiderParam(org.zaproxy.zap.spider.SpiderParam spiderParam) {
+        this.spiderParam = spiderParam;
+    }
+
+    protected org.zaproxy.zap.spider.SpiderParam getSpiderParam() {
+        return spiderParam;
+    }
 
     /**
      * Gets the logger.
@@ -79,14 +100,31 @@ public abstract class SpiderParser {
     /**
      * Notify the listeners that a resource was found.
      *
+     * @param resourceFound the resource found.
+     * @since 2.11.0
+     */
+    protected void notifyListenersResourceFound(SpiderResourceFound resourceFound) {
+        for (SpiderParserListener l : listeners) {
+            l.resourceFound(resourceFound);
+        }
+    }
+
+    /**
+     * Notify the listeners that a resource was found.
+     *
      * @param message the http message containing the response.
      * @param depth the depth of this resource in the crawling tree
      * @param uri the uri
+     * @deprecated (2.11.0) Use {@link #notifyListenersResourceFound(SpiderResourceFound)} instead.
      */
+    @Deprecated
     protected void notifyListenersResourceFound(HttpMessage message, int depth, String uri) {
-        for (SpiderParserListener l : listeners) {
-            l.resourceURIFound(message, depth, uri);
-        }
+        notifyListenersResourceFound(
+                SpiderResourceFound.builder()
+                        .setMessage(message)
+                        .setDepth(depth)
+                        .setUri(uri)
+                        .build());
     }
 
     /**
@@ -97,12 +135,19 @@ public abstract class SpiderParser {
      * @param depth the depth of this resource in the crawling tree
      * @param uri the uri
      * @param requestBody the request body
+     * @deprecated (2.11.0) Use {@link #notifyListenersResourceFound(SpiderResourceFound)} instead.
      */
+    @Deprecated
     protected void notifyListenersPostResourceFound(
             HttpMessage message, int depth, String uri, String requestBody) {
-        for (SpiderParserListener l : listeners) {
-            l.resourcePostURIFound(message, depth, uri, requestBody);
-        }
+        notifyListenersResourceFound(
+                SpiderResourceFound.builder()
+                        .setMessage(message)
+                        .setDepth(depth)
+                        .setUri(uri)
+                        .setMethod(HttpRequestHeader.POST)
+                        .setBody(requestBody)
+                        .build());
     }
 
     /**
@@ -115,13 +160,23 @@ public abstract class SpiderParser {
      */
     protected void processURL(HttpMessage message, int depth, String localURL, String baseURL) {
         // Build the absolute canonical URL
-        String fullURL = URLCanonicalizer.getCanonicalURL(localURL, baseURL);
+        String fullURL = getCanonicalURL(localURL, baseURL);
         if (fullURL == null) {
             return;
         }
 
-        log.debug("Canonical URL constructed using '" + localURL + "': " + fullURL);
-        notifyListenersResourceFound(message, depth + 1, fullURL);
+        getLogger().debug("Canonical URL constructed using '{}': {}", localURL, fullURL);
+        notifyListenersResourceFound(
+                SpiderResourceFound.builder()
+                        .setMessage(message)
+                        .setDepth(depth + 1)
+                        .setUri(fullURL)
+                        .build());
+    }
+
+    protected String getCanonicalURL(String localURL, String baseURL) {
+        return org.zaproxy.zap.spider.URLCanonicalizer.getCanonicalURL(
+                localURL, baseURL, spiderParam::isIrrelevantUrlParameter);
     }
 
     /**
@@ -129,9 +184,8 @@ public abstract class SpiderParser {
      * if possible, a Jericho source with the Response Body is provided.
      *
      * <p>When a link is encountered, implementations can use {@link #processURL(HttpMessage, int,
-     * String, String)}, {@link #notifyListenersPostResourceFound(HttpMessage, int, String, String)}
-     * and {@link #notifyListenersResourceFound(HttpMessage, int, String)} to announce the found
-     * URIs.
+     * String, String)} and {@link #notifyListenersResourceFound(SpiderResourceFound)} to announce
+     * the found URIs.
      *
      * <p>The return value specifies whether the resource should be considered 'completely
      * processed'/consumed and should be treated accordingly by subsequent parsers. For example, any

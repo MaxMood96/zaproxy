@@ -37,6 +37,7 @@ import java.util.Map;
  *
  * @author MaWoKi
  */
+@Deprecated
 public final class CachedSslCertifificateServiceImpl implements SslCertificateService {
 
     private static final SslCertificateService singleton = new CachedSslCertifificateServiceImpl();
@@ -51,16 +52,26 @@ public final class CachedSslCertifificateServiceImpl implements SslCertificateSe
 
     @Override
     public KeyStore createCertForHost(String hostname)
-            throws CertificateException, UnrecoverableKeyException, NoSuchAlgorithmException,
-                    KeyStoreException, SignatureException, NoSuchProviderException,
-                    InvalidKeyException, IOException {
+            throws CertificateException,
+                    UnrecoverableKeyException,
+                    NoSuchAlgorithmException,
+                    KeyStoreException,
+                    SignatureException,
+                    NoSuchProviderException,
+                    InvalidKeyException,
+                    IOException {
         return createCertForHost(new CertData(hostname));
     }
 
     @Override
     public synchronized KeyStore createCertForHost(CertData certData)
-            throws NoSuchAlgorithmException, InvalidKeyException, CertificateException,
-                    NoSuchProviderException, SignatureException, KeyStoreException, IOException,
+            throws NoSuchAlgorithmException,
+                    InvalidKeyException,
+                    CertificateException,
+                    NoSuchProviderException,
+                    SignatureException,
+                    KeyStoreException,
+                    IOException,
                     UnrecoverableKeyException {
 
         if (this.cache.containsKey(certData)) {
@@ -71,7 +82,9 @@ public final class CachedSslCertifificateServiceImpl implements SslCertificateSe
         return ks;
     }
 
-    /** @return return the current {@link SslCertificateService} */
+    /**
+     * @return return the current {@link SslCertificateService}
+     */
     public static SslCertificateService getService() {
         return singleton;
     }

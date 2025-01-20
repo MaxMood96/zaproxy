@@ -92,7 +92,7 @@ public class JsonBasedAuthenticationMethodType extends PostBasedAuthenticationMe
         }
 
         @Override
-        protected AuthenticationMethod duplicate() {
+        public AuthenticationMethod duplicate() {
             return new JsonBasedAuthenticationMethod(this);
         }
 
@@ -131,9 +131,7 @@ public class JsonBasedAuthenticationMethodType extends PostBasedAuthenticationMe
                 jsonObject = JSONObject.fromObject(postData);
                 extractJsonStrings(jsonObject, "", params);
             } catch (JSONException e) {
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Unable to parse as JSON: " + postData, e);
-                }
+                LOGGER.debug("Unable to parse as JSON: {}", postData, e);
                 jsonObject = null;
                 return Collections.emptyList();
             }
@@ -182,7 +180,7 @@ public class JsonBasedAuthenticationMethodType extends PostBasedAuthenticationMe
 
     @Override
     public boolean isTypeForMethod(AuthenticationMethod method) {
-        return method instanceof JsonBasedAuthenticationMethod;
+        return method != null && JsonBasedAuthenticationMethod.class.equals(method.getClass());
     }
 
     @Override

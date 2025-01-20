@@ -66,12 +66,13 @@ import org.zaproxy.zap.utils.DisplayUtils;
 import org.zaproxy.zap.utils.ZapTextField;
 import org.zaproxy.zap.view.LayoutHelper;
 
+@SuppressWarnings("serial")
 public class PolicyAllCategoryPanel extends AbstractParamPanel {
 
     // private static final String ILLEGAL_CHRS = "/`?*\\<>|\":\t\n\r";
 
     private static final long serialVersionUID = 1L;
-    private static final Logger logger = LogManager.getLogger(PolicyAllCategoryPanel.class);
+    private static final Logger LOGGER = LogManager.getLogger(PolicyAllCategoryPanel.class);
 
     private ZapTextField policyName = null;
     private JTable tableTest = null;
@@ -278,10 +279,9 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
                                 policy = extension.getPolicyManager().getPolicy(policyName);
                                 if (policy != null) {
                                     setScanPolicy(policy);
-                                    fireScanPolicyChanged(policy);
                                 }
                             } catch (ConfigurationException e1) {
-                                logger.error(e1.getMessage(), e1);
+                                LOGGER.error(e1.getMessage(), e1);
                             }
                         }
                     });
@@ -354,7 +354,7 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
      */
     private JComboBox<String> createStatusComboBox() {
         JComboBox<String> comboBox = new JComboBox<>();
-        comboBox.addItem(Constant.messages.getString("ascan.policy.table.quality.all"));
+        comboBox.addItem(Constant.messages.getString("ascan.policy.table.status.all"));
         View view = View.getSingleton();
         comboBox.addItem(view.getStatusUI(AddOn.Status.release).toString());
         comboBox.addItem(view.getStatusUI(AddOn.Status.beta).toString());
@@ -381,7 +381,7 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
      * @see Plugin#getStatus()
      */
     private boolean hasSameStatus(Plugin scanner, String status) {
-        if (status.equals(Constant.messages.getString("ascan.policy.table.quality.all"))) {
+        if (status.equals(Constant.messages.getString("ascan.policy.table.status.all"))) {
             return true;
         }
         return status.equals(View.getSingleton().getStatusUI(scanner.getStatus()).toString());
@@ -510,11 +510,12 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
             throw new InvalidParameterException(
                     "Cannot change policy if the panel has not been defined as switchable");
         }
-        this.policy = scanPolicy;
         this.getPolicySelector().setSelectedItem(scanPolicy.getName());
+        this.policy = scanPolicy;
         this.setThreshold(scanPolicy.getDefaultThreshold());
         this.setStrength(scanPolicy.getDefaultStrength());
         this.getAllCategoryTableModel().setPluginFactory(scanPolicy.getPluginFactory());
+        fireScanPolicyChanged(policy);
     }
 
     @Override
@@ -534,7 +535,8 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
 
         } else if (!newName.equals(currentName)) {
             // Name changed
-            if (extension.getPolicyManager().getAllPolicyNames().contains(newName)) {
+            if (extension.getPolicyManager().getAllPolicyNames().stream()
+                    .anyMatch(newName::equalsIgnoreCase)) {
                 getPolicyName().requestFocusInWindow();
                 throw new Exception(Constant.messages.getString("ascan.policy.warn.exists"));
             }
@@ -587,6 +589,7 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
     private JComboBox<String> getComboThreshold() {
         if (comboThreshold == null) {
             comboThreshold = new JComboBox<>();
+            comboThreshold.addItem(Constant.messages.getString("ascan.options.level.off"));
             comboThreshold.addItem(Constant.messages.getString("ascan.options.level.low"));
             comboThreshold.addItem(Constant.messages.getString("ascan.options.level.medium"));
             comboThreshold.addItem(Constant.messages.getString("ascan.options.level.high"));
@@ -596,6 +599,17 @@ public class PolicyAllCategoryPanel extends AbstractParamPanel {
                         public void actionPerformed(ActionEvent e) {
                             // Set the explanation and save
                             if (comboThreshold
+                                    .getSelectedItem()
+                                    .equals(
+                                            Constant.messages.getString(
+                                                    "ascan.options.level.off"))) {
+                                getThresholdNotes()
+                                        .setText(
+                                                Constant.messages.getString(
+                                                        "ascan.options.level.off.label"));
+                                policy.setDefaultThreshold(AlertThreshold.OFF);
+
+                            } else if (comboThreshold
                                     .getSelectedItem()
                                     .equals(
                                             Constant.messages.getString(

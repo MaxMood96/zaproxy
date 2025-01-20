@@ -42,12 +42,16 @@
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/11/26 Use getLogger().
 // ZAP: 2021/08/24 Remove the "(non-Javadoc)" comments.
+// ZAP: 2021/09/27 Added support for Alert Tags.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/09/12 Implement setDatabaseOptions(DatabaseParam).
 package org.parosproxy.paros.db.paros;
 
 import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import org.parosproxy.paros.db.AbstractDatabase;
 import org.parosproxy.paros.db.Database;
 import org.parosproxy.paros.db.DatabaseException;
@@ -63,6 +67,8 @@ import org.parosproxy.paros.db.TableSessionUrl;
 import org.parosproxy.paros.db.TableStructure;
 import org.parosproxy.paros.db.TableTag;
 import org.parosproxy.paros.extension.option.DatabaseParam;
+import org.zaproxy.zap.db.TableAlertTag;
+import org.zaproxy.zap.db.paros.ParosTableAlertTag;
 
 public class ParosDatabase extends AbstractDatabase {
 
@@ -70,6 +76,7 @@ public class ParosDatabase extends AbstractDatabase {
     private TableHistory tableHistory = null;
     private TableSession tableSession = null;
     private TableAlert tableAlert = null;
+    private TableAlertTag tableAlertTag = null;
     private TableScan tableScan = null;
     // ZAP: Added TableTag
     private TableTag tableTag = null;
@@ -94,6 +101,7 @@ public class ParosDatabase extends AbstractDatabase {
         tableHistory = new ParosTableHistory();
         tableSession = new ParosTableSession();
         tableAlert = new ParosTableAlert();
+        tableAlertTag = new ParosTableAlertTag();
         tableScan = new ParosTableScan();
         // ZAP: Added statement.
         tableTag = new ParosTableTag();
@@ -107,6 +115,7 @@ public class ParosDatabase extends AbstractDatabase {
         internalDatabaseListeners.add(tableHistory);
         internalDatabaseListeners.add(tableSession);
         internalDatabaseListeners.add(tableAlert);
+        internalDatabaseListeners.add(tableAlertTag);
         internalDatabaseListeners.add(tableScan);
         internalDatabaseListeners.add(tableTag);
         internalDatabaseListeners.add(tableSessionUrl);
@@ -115,13 +124,17 @@ public class ParosDatabase extends AbstractDatabase {
         internalDatabaseListeners.add(tableStructure);
     }
 
-    /** @return Returns the databaseServer */
+    /**
+     * @return Returns the databaseServer
+     */
     @Override
     public DatabaseServer getDatabaseServer() {
         return databaseServer;
     }
 
-    /** @param databaseServer The databaseServer to set. */
+    /**
+     * @param databaseServer The databaseServer to set.
+     */
     private void setDatabaseServer(ParosDatabaseServer databaseServer) {
         this.databaseServer = databaseServer;
     }
@@ -139,7 +152,7 @@ public class ParosDatabase extends AbstractDatabase {
     @Override
     public void open(String path) throws ClassNotFoundException, Exception {
         // ZAP: Added log statement.
-        getLogger().debug("open " + path);
+        getLogger().debug("open {}", path);
         setDatabaseServer(new ParosDatabaseServer(path, databaseOptions));
 
         notifyListenersDatabaseOpen(internalDatabaseListeners, getDatabaseServer());
@@ -148,7 +161,7 @@ public class ParosDatabase extends AbstractDatabase {
 
     @Override
     public void deleteSession(String sessionName) {
-        getLogger().debug("deleteSession " + sessionName);
+        getLogger().debug("deleteSession {}", sessionName);
         if (databaseServer == null) {
             return;
         }
@@ -169,10 +182,10 @@ public class ParosDatabase extends AbstractDatabase {
     }
 
     private void deleteDbFile(File file) {
-        getLogger().debug("Deleting " + file.getAbsolutePath());
+        getLogger().debug("Deleting {}", file.getAbsolutePath());
         if (file.exists()) {
             if (!file.delete()) {
-                getLogger().error("Failed to delete " + file.getAbsolutePath());
+                getLogger().error("Failed to delete {}", file.getAbsolutePath());
             }
         }
     }
@@ -211,6 +224,16 @@ public class ParosDatabase extends AbstractDatabase {
     @Override
     public void setTableAlert(TableAlert tableAlert) {
         this.tableAlert = tableAlert;
+    }
+
+    @Override
+    public TableAlertTag getTableAlertTag() {
+        return tableAlertTag;
+    }
+
+    @Override
+    public void setTableAlertTag(TableAlertTag tableAlertTag) {
+        this.tableAlertTag = tableAlertTag;
     }
 
     @Override
@@ -272,12 +295,20 @@ public class ParosDatabase extends AbstractDatabase {
      * @param databaseOptions the object that holds the database options, must not be {@code null}
      * @throws IllegalArgumentException if the given parameter is {@code null}.
      * @since 2.5.0
+     * @deprecated (2.14.0) Use {@link #setDatabaseOptions(DatabaseParam)} instead.
      */
+    @Deprecated(since = "2.14.0", forRemoval = true)
     public void setDatabaseParam(DatabaseParam databaseOptions) {
         if (databaseOptions == null) {
             throw new IllegalArgumentException("Parameter databaseOptions must not be null.");
         }
-        this.databaseOptions = databaseOptions;
+        setDatabaseOptions(databaseOptions);
+    }
+
+    @Override
+    public void setDatabaseOptions(DatabaseParam options) {
+        this.databaseOptions = Objects.requireNonNull(options);
+        tableHistory.setDatabaseOptions(databaseOptions);
     }
 
     @Override

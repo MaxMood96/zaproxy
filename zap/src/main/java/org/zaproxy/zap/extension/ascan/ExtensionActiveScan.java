@@ -59,12 +59,13 @@ import org.zaproxy.zap.model.StructuralNode;
 import org.zaproxy.zap.model.StructuralSiteNode;
 import org.zaproxy.zap.model.Target;
 import org.zaproxy.zap.users.User;
+import org.zaproxy.zap.utils.Stats;
 import org.zaproxy.zap.view.ZapMenuItem;
 
 public class ExtensionActiveScan extends ExtensionAdaptor
         implements SessionChangedListener, CommandLineListener, ScanController<ActiveScan> {
 
-    private static final Logger logger = LogManager.getLogger(ExtensionActiveScan.class);
+    private static final Logger LOGGER = LogManager.getLogger(ExtensionActiveScan.class);
     private static final int ARG_SCAN_IDX = 0;
 
     public static final String NAME = "ExtensionActiveScan";
@@ -80,6 +81,8 @@ public class ExtensionActiveScan extends ExtensionAdaptor
     private AttackModeScanner attackModeScanner;
 
     private ActiveScanController ascanController = null;
+
+    private boolean panelSwitch = true;
 
     static {
         List<Class<? extends Extension>> dep = new ArrayList<>(1);
@@ -187,6 +190,10 @@ public class ExtensionActiveScan extends ExtensionAdaptor
         this.activeScanApi = new ActiveScanAPI(this);
         this.activeScanApi.addApiOptions(getScannerParam());
         extensionHook.addApiImplementor(activeScanApi);
+
+        String deprecationDesc = Constant.messages.getString("ascan.api.delay.deprecated");
+        activeScanApi.getApiView("optionDelayInMs").setDeprecatedDescription(deprecationDesc);
+        activeScanApi.getApiAction("setOptionDelayInMs").setDeprecatedDescription(deprecationDesc);
     }
 
     private ImageIcon createIcon(String iconName) {
@@ -289,9 +296,31 @@ public class ExtensionActiveScan extends ExtensionAdaptor
             scanner.addScannerListener(getActiveScanPanel()); // So the UI get updated
             this.getActiveScanPanel().scannerStarted(scanner);
             this.getActiveScanPanel().switchView(scanner);
-            this.getActiveScanPanel().setTabFocus();
+            if (isPanelSwitch()) {
+                this.getActiveScanPanel().setTabFocus();
+            }
         }
         return id;
+    }
+
+    /**
+     * Returns true if the GUI will switch to the Active Scan panel when a scan is started.
+     *
+     * @since 2.11.0
+     */
+    public boolean isPanelSwitch() {
+        return panelSwitch;
+    }
+
+    /**
+     * Sets if the GUI will switch to the Active Scan panel when a scan is started. Code should only
+     * set this to false just before starting a scan and reset it to true as soon as the scan has
+     * started.
+     *
+     * @since 2.11.0
+     */
+    public void setPanelSwitch(boolean panelSwitch) {
+        this.panelSwitch = panelSwitch;
     }
 
     private JButton getPolicyButton() {
@@ -308,6 +337,7 @@ public class ExtensionActiveScan extends ExtensionAdaptor
                         @Override
                         public void actionPerformed(java.awt.event.ActionEvent e) {
                             showPolicyManagerDialog();
+                            Stats.incCounter("stats.ui.maintoolbar.button.ascan.policy");
                         }
                     });
         }
@@ -362,7 +392,7 @@ public class ExtensionActiveScan extends ExtensionAdaptor
                 getModel().getOptionsParam().getConfig().save();
 
             } catch (ConfigurationException ce) {
-                logger.error(ce.getMessage(), ce);
+                LOGGER.error(ce.getMessage(), ce);
                 getView().showWarningDialog(Constant.messages.getString("scanner.save.warning"));
             }
         }
@@ -407,7 +437,7 @@ public class ExtensionActiveScan extends ExtensionAdaptor
                         });
 
             } catch (InterruptedException | InvocationTargetException e) {
-                logger.error(e.getMessage(), e);
+                LOGGER.error(e.getMessage(), e);
             }
         }
     }
@@ -757,7 +787,9 @@ public class ExtensionActiveScan extends ExtensionAdaptor
             scanner.addScannerListener(getActiveScanPanel()); // So the UI get updated
             this.getActiveScanPanel().scannerStarted(scanner);
             this.getActiveScanPanel().switchView(scanner);
-            this.getActiveScanPanel().setTabFocus();
+            if (isPanelSwitch()) {
+                this.getActiveScanPanel().setTabFocus();
+            }
         }
 
         return id;

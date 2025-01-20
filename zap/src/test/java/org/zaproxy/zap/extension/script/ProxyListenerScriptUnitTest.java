@@ -34,10 +34,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
+import java.util.concurrent.Callable;
 import javax.script.ScriptException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.quality.Strictness;
 import org.parosproxy.paros.extension.history.ProxyListenerLog;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.WithConfigsTest;
@@ -210,7 +212,7 @@ class ProxyListenerScriptUnitTest extends WithConfigsTest {
     }
 
     private static ProxyScript mockProxyScript() throws ScriptException {
-        ProxyScript script = mock(TARGET_INTERFACE, withSettings().lenient());
+        ProxyScript script = mock(TARGET_INTERFACE, withSettings().strictness(Strictness.LENIENT));
         given(script.proxyRequest(any())).willReturn(true);
         given(script.proxyResponse(any())).willReturn(true);
         return script;
@@ -222,8 +224,15 @@ class ProxyListenerScriptUnitTest extends WithConfigsTest {
 
     @SuppressWarnings("unchecked")
     private static <T> CachedScript<T> createCachedScript(T script, ScriptWrapper scriptWrapper) {
-        CachedScript<T> cachedScript = mock(CachedScript.class, withSettings().lenient());
+        CachedScript<T> cachedScript =
+                mock(CachedScript.class, withSettings().strictness(Strictness.LENIENT));
         given(cachedScript.getScript()).willReturn(script);
+        try {
+            given(cachedScript.execute(any()))
+                    .willAnswer(a -> ((Callable<?>) a.getArgument(0)).call());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         if (scriptWrapper != null) {
             given(cachedScript.getScriptWrapper()).willReturn(scriptWrapper);
         }

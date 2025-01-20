@@ -22,9 +22,11 @@ package org.parosproxy.paros.core.scanner;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import org.parosproxy.paros.network.HttpHeaderField;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.network.HttpRequestHeader;
@@ -94,7 +96,16 @@ public class VariantHeader implements Variant {
      */
     private List<NameValuePair> params = Collections.emptyList();
 
-    /** @throws IllegalArgumentException if {@code message} is {@code null}. */
+    private static final String SHORT_NAME = "header";
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
+
+    /**
+     * @throws IllegalArgumentException if {@code message} is {@code null}.
+     */
     @Override
     public void setMessage(HttpMessage message) {
         if (message == null) {
@@ -136,6 +147,9 @@ public class VariantHeader implements Variant {
     @Override
     public String setParameter(
             HttpMessage msg, NameValuePair originalPair, String name, String value) {
+        if (HttpRequestHeader.HOST.equalsIgnoreCase(originalPair.getName())) {
+            getProperties(msg).put(HttpRequestHeader.HOST, value);
+        }
         msg.getRequestHeader().setHeader(originalPair.getName(), value);
         if (value == null) {
             return "";
@@ -147,5 +161,15 @@ public class VariantHeader implements Variant {
     public String setEscapedParameter(
             HttpMessage msg, NameValuePair originalPair, String name, String value) {
         return setParameter(msg, originalPair, name, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> getProperties(HttpMessage message) {
+        Object userObject = message.getUserObject();
+        if (!(userObject instanceof Map)) {
+            userObject = new HashMap<>();
+            message.setUserObject(userObject);
+        }
+        return (Map<String, Object>) userObject;
     }
 }

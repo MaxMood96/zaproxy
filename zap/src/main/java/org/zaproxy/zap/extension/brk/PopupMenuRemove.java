@@ -23,6 +23,7 @@ import java.awt.Component;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.extension.ExtensionPopupMenuItem;
 
+@SuppressWarnings("serial")
 public class PopupMenuRemove extends ExtensionPopupMenuItem {
 
     private static final long serialVersionUID = 1L;
@@ -42,15 +43,9 @@ public class PopupMenuRemove extends ExtensionPopupMenuItem {
     }
 
     @Override
-    @SuppressWarnings("deprecation")
     public boolean isEnableForComponent(Component invoker) {
         if (invoker.getName() != null && invoker.getName().equals(BreakpointsPanel.PANEL_NAME)) {
-            // TODO remove once no longer needed (i.e. when all add-ons show modal dialogues).
-            if (extension.canRemoveBreakpoint()) {
-                this.setEnabled(true);
-            } else {
-                this.setEnabled(false);
-            }
+            this.setEnabled(true);
             return true;
         }
         return false;

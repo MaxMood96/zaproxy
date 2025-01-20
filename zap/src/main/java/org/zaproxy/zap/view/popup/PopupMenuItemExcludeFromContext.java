@@ -31,7 +31,10 @@ import org.parosproxy.paros.view.View;
 import org.zaproxy.zap.model.Context;
 import org.zaproxy.zap.view.ContextExcludePanel;
 
-/** @since 2.3.0 */
+/**
+ * @since 2.3.0
+ */
+@SuppressWarnings("serial")
 public class PopupMenuItemExcludeFromContext extends PopupMenuItemSiteNodeContainer {
 
     private static final long serialVersionUID = 2766535157899537709L;
@@ -64,7 +67,7 @@ public class PopupMenuItemExcludeFromContext extends PopupMenuItemSiteNodeContai
         try {
             uiSharedContext.excludeFromContext(sn, !sn.isLeaf());
         } catch (Exception e) {
-            LOGGER.error("Failed to execute action exclude from context: " + e.getMessage(), e);
+            LOGGER.error("Failed to execute action exclude from context: {}", e.getMessage(), e);
         }
     }
 

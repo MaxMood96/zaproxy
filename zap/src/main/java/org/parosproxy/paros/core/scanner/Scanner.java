@@ -52,6 +52,13 @@
 // ZAP: 2020/11/17 Use new TechSet#getAllTech().
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
 // ZAP: 2021/05/14 Remove redundant type arguments.
+// ZAP: 2022/04/23 Use new HttpSender constructor.
+// ZAP: 2022/05/20 Address deprecation warnings with ConnectionParam.
+// ZAP: 2022/06/09 Name the threads.
+// ZAP: 2022/09/21 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/05/30 Stop HostProcess to stop the Analyser.
+// ZAP: 2024/11/20 Include ID of the scan in relevant log messages.
 package org.parosproxy.paros.core.scanner;
 
 import java.security.InvalidParameterException;
@@ -75,7 +82,6 @@ import org.parosproxy.paros.common.ThreadPool;
 import org.parosproxy.paros.control.Control;
 import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.SiteNode;
-import org.parosproxy.paros.network.ConnectionParam;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.extension.ascan.ActiveScanEventPublisher;
 import org.zaproxy.zap.extension.ascan.ScanPolicy;
@@ -88,10 +94,22 @@ import org.zaproxy.zap.model.StructuralSiteNode;
 import org.zaproxy.zap.model.Target;
 import org.zaproxy.zap.model.TechSet;
 import org.zaproxy.zap.users.User;
+import org.zaproxy.zap.utils.Stats;
 
 public class Scanner implements Runnable {
 
-    private static Logger log = LogManager.getLogger(Scanner.class);
+    public static final String ASCAN_SCAN_STARTED_STATS = "stats.ascan.started";
+    public static final String ASCAN_SCAN_STOPPED_STATS = "stats.ascan.stopped";
+    public static final String ASCAN_SCAN_TIME_STATS = "stats.ascan.time";
+    public static final String ASCAN_URLS_STATS = "stats.ascan.urls";
+    public static final String ASCAN_RULE_PREFIX = "stats.ascan.";
+    public static final String ALERTS_POSTFIX = ".alerts";
+    public static final String SKIPPED_POSTFIX = ".skipped";
+    public static final String STARTED_POSTFIX = ".started";
+    public static final String TIME_POSTFIX = ".time";
+    public static final String URLS_POSTFIX = ".urls";
+
+    private static final Logger LOGGER = LogManager.getLogger(Scanner.class);
     private static DecimalFormat decimalFormat = new java.text.DecimalFormat("###0.###");
 
     private Vector<ScannerListener> listenerList = new Vector<>();
@@ -99,7 +117,6 @@ public class Scanner implements Runnable {
     // ZAP: Added a list of scannerhooks
     private Vector<ScannerHook> hookList = new Vector<>();
     private ScannerParam scannerParam = null;
-    private ConnectionParam connectionParam = null;
     private ScanPolicy scanPolicy;
     private RuleConfigParam ruleConfigParam;
     private boolean isStop = false;
@@ -126,11 +143,14 @@ public class Scanner implements Runnable {
      * @param scannerParam the scanner parameters
      * @param param the connection parameters
      * @param scanPolicy the scan policy
-     * @deprecated Use {@link #Scanner(ScannerParam, ConnectionParam, ScanPolicy, RuleConfigParam)}
-     *     instead. It will be removed in a future version.
+     * @deprecated Use {@link #Scanner(ScannerParam, ScanPolicy, RuleConfigParam)} instead. It will
+     *     be removed in a future version.
      */
     @Deprecated
-    public Scanner(ScannerParam scannerParam, ConnectionParam param, ScanPolicy scanPolicy) {
+    public Scanner(
+            ScannerParam scannerParam,
+            org.parosproxy.paros.network.ConnectionParam param,
+            ScanPolicy scanPolicy) {
         this(scannerParam, param, scanPolicy, null);
     }
 
@@ -142,17 +162,31 @@ public class Scanner implements Runnable {
      * @param scanPolicy the scan policy
      * @param ruleConfigParam the rules' configurations, might be {@code null}.
      * @since 2.6.0
+     * @deprecated (2.12.0) Use {@link #Scanner(ScannerParam, ScanPolicy, RuleConfigParam)} instead.
      */
+    @Deprecated
     public Scanner(
             ScannerParam scannerParam,
-            ConnectionParam param,
+            org.parosproxy.paros.network.ConnectionParam param,
             ScanPolicy scanPolicy,
             RuleConfigParam ruleConfigParam) {
-        this.connectionParam = param;
+        this(scannerParam, scanPolicy, ruleConfigParam);
+    }
+
+    /**
+     * Constructs a {@code Scanner}.
+     *
+     * @param scannerParam the scanner parameters
+     * @param scanPolicy the scan policy
+     * @param ruleConfigParam the rules' configurations, might be {@code null}.
+     * @since 2.12.0
+     */
+    public Scanner(
+            ScannerParam scannerParam, ScanPolicy scanPolicy, RuleConfigParam ruleConfigParam) {
         this.scannerParam = scannerParam;
         this.scanPolicy = scanPolicy;
         this.ruleConfigParam = ruleConfigParam;
-        pool = new ThreadPool(scannerParam.getHostPerScan());
+        pool = new ThreadPool(scannerParam.getHostPerScan(), "ZAP-Scanner-");
 
         // ZAP: Load all scanner hooks from extensionloader.
         Control.getSingleton().getExtensionLoader().hookScannerHook(this);
@@ -166,7 +200,7 @@ public class Scanner implements Runnable {
 
     public void start(Target target) {
         isStop = false;
-        log.info("scanner started");
+        LOGGER.info("scanner with ID {} started", id);
         startTimeMillis = System.currentTimeMillis();
         this.target = target;
         Thread thread = new Thread(this);
@@ -174,16 +208,19 @@ public class Scanner implements Runnable {
         thread.start();
         ActiveScanEventPublisher.publishScanEvent(
                 ScanEventPublisher.SCAN_STARTED_EVENT, this.getId(), target, this.user);
+        Stats.incCounter(ASCAN_SCAN_STARTED_STATS);
     }
 
     public void stop() {
         if (!isStop) {
-            log.info("scanner stopped");
+            LOGGER.info("scanner with ID {} stopped", id);
 
             isStop = true;
+            hostProcesses.stream().forEach(HostProcess::stop);
 
             ActiveScanEventPublisher.publishScanEvent(
                     ScanEventPublisher.SCAN_STOPPED_EVENT, this.getId());
+            Stats.incCounter(ASCAN_SCAN_STOPPED_STATS);
         }
     }
 
@@ -218,7 +255,7 @@ public class Scanner implements Runnable {
             //	    }
             pool.waitAllThreadComplete(0);
         } catch (Exception e) {
-            log.error("An error occurred while active scanning:", e);
+            LOGGER.error("An error occurred while active scanning:", e);
         } finally {
             notifyScannerComplete();
         }
@@ -303,13 +340,7 @@ public class Scanner implements Runnable {
 
     private HostProcess createHostProcess(String hostAndPort, StructuralNode node) {
         HostProcess hostProcess =
-                new HostProcess(
-                        hostAndPort,
-                        this,
-                        scannerParam,
-                        connectionParam,
-                        scanPolicy,
-                        ruleConfigParam);
+                new HostProcess(hostAndPort, this, scannerParam, scanPolicy, ruleConfigParam);
         hostProcess.setStartNode(node);
         hostProcess.setUser(this.user);
         hostProcess.setTechSet(this.techSet);
@@ -374,11 +405,12 @@ public class Scanner implements Runnable {
     void notifyScannerComplete() {
         long diffTimeMillis = System.currentTimeMillis() - startTimeMillis;
         String diffTimeString = decimalFormat.format(diffTimeMillis / 1000.0) + "s";
-        log.info("scanner completed in " + diffTimeString);
+        LOGGER.info("scanner with ID {} completed in {}", id, diffTimeString);
         isStop = true;
 
         ActiveScanEventPublisher.publishScanEvent(
                 ScanEventPublisher.SCAN_COMPLETED_EVENT, this.getId());
+        Stats.incCounter(ASCAN_SCAN_TIME_STATS, diffTimeMillis);
 
         for (int i = 0; i < listenerList.size(); i++) {
             // ZAP: Removed unnecessary cast.
@@ -392,9 +424,9 @@ public class Scanner implements Runnable {
                 ScannerHook hook = hookList.get(i);
                 hook.scannerComplete();
             } catch (Exception e) {
-                log.info(
-                        "An exception occurred while notifying a ScannerHook about scanner completion: "
-                                + e.getMessage(),
+                LOGGER.info(
+                        "An exception occurred while notifying a ScannerHook about scanner completion: {}",
+                        e.getMessage(),
                         e);
             }
         }
@@ -474,9 +506,7 @@ public class Scanner implements Runnable {
         if (excludeUrls != null) {
             for (Pattern p : excludeUrls) {
                 if (p.matcher(nodeName).matches()) {
-                    if (log.isDebugEnabled()) {
-                        log.debug("URL excluded: " + nodeName + " Regex: " + p.pattern());
-                    }
+                    LOGGER.debug("URL excluded: {} Regex: {}", nodeName, p.pattern());
                     // Explicitly excluded
                     return false;
                 }

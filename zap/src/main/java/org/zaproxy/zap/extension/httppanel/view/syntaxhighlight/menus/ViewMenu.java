@@ -30,6 +30,7 @@ import org.fife.ui.rtextarea.RTextScrollPane;
 import org.parosproxy.paros.Constant;
 import org.zaproxy.zap.extension.ExtensionPopupMenu;
 import org.zaproxy.zap.extension.httppanel.view.syntaxhighlight.HttpPanelSyntaxHighlightTextArea;
+import org.zaproxy.zap.view.popup.MenuWeights;
 
 public class ViewMenu extends ExtensionPopupMenu {
 
@@ -135,6 +136,11 @@ public class ViewMenu extends ExtensionPopupMenu {
         return false;
     }
 
+    @Override
+    public int getWeight() {
+        return MenuWeights.MENU_VIEW_WEIGHT;
+    }
+
     public void updateState(HttpPanelSyntaxHighlightTextArea httpPanelTextArea) {
 
         antiAliasingOption.setSelected(httpPanelTextArea.getAntiAliasingEnabled());
@@ -171,6 +177,10 @@ public class ViewMenu extends ExtensionPopupMenu {
 
         bracketMatchingOption.setSelected(httpPanelTextArea.isBracketMatchingEnabled());
         animatedBracketMatchingOption.setSelected(httpPanelTextArea.getAnimateBracketMatching());
+    }
+
+    public void setWordWrapEnabled(boolean enabled) {
+        wordWrapOption.setEnabled(enabled);
     }
 
     private JCheckBoxMenuItem createAndAddOption(TextAction action, JMenu menu) {

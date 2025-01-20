@@ -26,12 +26,16 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.TreeSet;
 import org.apache.commons.httpclient.URI;
 import org.apache.commons.httpclient.URIException;
 import org.junit.jupiter.api.AfterEach;
@@ -44,6 +48,7 @@ import org.parosproxy.paros.db.DatabaseException;
 import org.parosproxy.paros.db.RecordHistory;
 import org.parosproxy.paros.db.TableAlert;
 import org.parosproxy.paros.db.TableHistory;
+import org.parosproxy.paros.network.HtmlParameter;
 import org.parosproxy.paros.network.HttpMalformedHeaderException;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.extension.ascan.VariantFactory;
@@ -60,11 +65,16 @@ class SiteMapUnitTest {
     private SiteMap siteMap;
     private VariantFactory factory;
 
+    private Session session;
+
     @BeforeEach
     void setup() throws Exception {
-        Session session = mock(Session.class);
+        session = mock(Session.class);
         StandardParameterParser spp = new StandardParameterParser();
         given(session.getUrlParamParser(any(String.class))).willReturn(spp);
+        given(session.getFormParamParser(any(String.class))).willReturn(spp);
+        given(session.getParameters(any(HttpMessage.class), any(HtmlParameter.Type.class)))
+                .willCallRealMethod();
         sessionId = 1234L;
         given(session.getSessionId()).willReturn(sessionId);
 
@@ -232,6 +242,77 @@ class SiteMapUnitTest {
         assertThat(leafNode.getParent(), is(equalTo(branchNode)));
     }
 
+    @Test
+    void shouldNotReturnCachedHistoryReference() throws Exception {
+        // Given
+        String uri = "http://example.com";
+        HistoryReference href = createHistoryReference(uri);
+        given(href.getHistoryType()).willReturn(HistoryReference.TYPE_ZAP_USER);
+        given(href.getHistoryId()).willReturn(100);
+        // When
+        siteMap.addPath(href);
+        siteMap.addPath(href);
+        siteMap.addPath(href, href.getHttpMessage(), false);
+        // Then
+        verify(session, times(3)).getUrlParamParser(anyString());
+    }
+
+    @Test
+    void shouldNotUseCacheForDifferentHistoryReference() throws Exception {
+        // Given
+        String uri = "http://example.com";
+        HistoryReference href1 = createHistoryReference(uri);
+        HistoryReference href2 = createHistoryReference(uri);
+        given(href1.getHistoryType()).willReturn(HistoryReference.TYPE_ZAP_USER);
+        given(href2.getHistoryType()).willReturn(HistoryReference.TYPE_ZAP_USER);
+        given(href1.getHistoryId()).willReturn(101);
+        given(href2.getHistoryId()).willReturn(102);
+        // When
+        siteMap.addPath(href1);
+        siteMap.addPath(href2);
+        // Then
+        verify(session, times(2)).getUrlParamParser(anyString());
+    }
+
+    @Test
+    void shouldGetCleanNameForLeafNodeWithQueryParams() throws Exception {
+        // Given
+        String uri = "http://example.com/me?juice=true";
+        HistoryReference href = createHistoryReference(uri);
+        // When
+        SiteNode leaf = siteMap.addPath(href, href.getHttpMessage(), false);
+        // Then
+        assertThat(leaf.getNodeName(), is(equalTo("GET:me(juice)")));
+        assertThat(leaf.getCleanNodeName(), is(equalTo("me")));
+    }
+
+    @Test
+    void shouldGetCleanNameForLeafNodeWithParentheses() throws Exception {
+        // Given
+        String uri = "http://example.com/me(juice)";
+        HistoryReference href = createHistoryReference(uri);
+        // When
+        SiteNode leaf = siteMap.addPath(href, href.getHttpMessage(), false);
+        // Then
+        assertThat(leaf.getNodeName(), is(equalTo("GET:me(juice)")));
+        assertThat(leaf.getCleanNodeName(), is(equalTo("me(juice)")));
+    }
+
+    @Test
+    void shouldGetCleanNameForLeafNodeWithQueryAndFormParams() throws Exception {
+        // Given
+        String uri = "http://example.com/cat?videos=5";
+        HistoryReference href = createHistoryReference(uri, "POST");
+        var formParams = new TreeSet<HtmlParameter>();
+        formParams.add(new HtmlParameter(HtmlParameter.Type.form, "online", "true"));
+        href.getHttpMessage().getRequestBody().setFormParams(formParams);
+        // When
+        SiteNode leaf = siteMap.addPath(href, href.getHttpMessage(), false);
+        // Then
+        assertThat(leaf.getNodeName(), is(equalTo("POST:cat(videos)(online)")));
+        assertThat(leaf.getCleanNodeName(), is(equalTo("cat")));
+    }
+
     private void siteMapWithNodes(String... uris) {
         Arrays.stream(uris).forEach(uri -> siteMap.addPath(createHistoryReference(uri)));
     }
@@ -246,6 +327,7 @@ class SiteMapUnitTest {
         given(historyReference.getURI()).willReturn(requestUri);
         try {
             HttpMessage httpMessage = new HttpMessage(requestUri);
+            httpMessage.getRequestHeader().setMethod(method);
             given(historyReference.getHttpMessage()).willReturn(httpMessage);
         } catch (HttpMalformedHeaderException | DatabaseException e) {
             throw new RuntimeException(e);

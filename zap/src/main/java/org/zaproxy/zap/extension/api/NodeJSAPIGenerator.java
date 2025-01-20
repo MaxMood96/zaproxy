@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.stream.Collectors;
+import org.parosproxy.paros.network.HttpRequestHeader;
 
 public class NodeJSAPIGenerator extends AbstractAPIGenerator {
 
@@ -85,18 +86,6 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
         super(path, optional, resourceBundle);
     }
 
-    /**
-     * Generates the API client files of the given API implementors.
-     *
-     * @param implementors the implementors
-     * @throws IOException if an error occurred while generating the APIs.
-     * @deprecated (2.6.0) Use {@link #generateAPIFiles(List)} instead.
-     */
-    @Deprecated
-    public void generateNodeJSFiles(List<ApiImplementor> implementors) throws IOException {
-        this.generateAPIFiles(implementors);
-    }
-
     private void generateNodeJSElement(
             ApiElement element, String component, String type, Writer out) throws IOException {
         String className = createClassName(component);
@@ -111,7 +100,40 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
             if (isOptional()) {
                 out.write(" * " + OPTIONAL_MESSAGE + "\n");
             }
+            if (hasParams) {
+
+                out.write(
+                        " * @param {string} "
+                                + element.getParameters().stream()
+                                        .map(
+                                                parameter -> {
+                                                    String description = "";
+                                                    if (getMessages()
+                                                            .containsKey(
+                                                                    parameter
+                                                                            .getDescriptionKey())) {
+                                                        String paramDesc =
+                                                                getMessages()
+                                                                        .getString(
+                                                                                parameter
+                                                                                        .getDescriptionKey());
+                                                        description =
+                                                                paramDesc.length() == 0
+                                                                        ? ""
+                                                                        : " - " + paramDesc;
+                                                    }
+                                                    return safeName(
+                                                                    parameter
+                                                                            .getName()
+                                                                            .toLowerCase(
+                                                                                    Locale.ROOT))
+                                                            + description;
+                                                })
+                                        .collect(Collectors.joining("\n * @param {string} ")));
+                out.write("\n");
+            }
             out.write(" **/\n");
+
         } catch (Exception e) {
             // Might not be set, so just print out the ones that are missing
             System.out.println("No i18n for: " + descTag);
@@ -126,16 +148,9 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
                 className + ".prototype." + createMethodName(element.getName()) + " = function (");
 
         if (hasParams) {
-            out.write(
-                    element.getParameters().stream()
-                            .map(ApiParameter::getName)
-                            .map(name -> safeName(name.toLowerCase(Locale.ROOT)))
-                            .collect(Collectors.joining(", ")));
-            out.write(", ");
+            out.write("args");
         }
-        out.write("callback) {\n");
-
-        // , {'url': url}))
+        out.write(") {\n");
         String reqParams = "";
         if (hasParams) {
             StringBuilder reqParamsBuilder = new StringBuilder();
@@ -148,10 +163,10 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
                                     name ->
                                             "'"
                                                     + name
-                                                    + "': "
+                                                    + "': args."
                                                     + safeName(name.toLowerCase(Locale.ROOT)))
                             .collect(Collectors.joining(", ")));
-            reqParamsBuilder.append("}");
+            reqParamsBuilder.append(" }");
             reqParams = reqParamsBuilder.toString();
 
             List<ApiParameter> optionalParameters =
@@ -167,21 +182,14 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
                 for (ApiParameter parameter : optionalParameters) {
                     String name = parameter.getName();
                     String varName = safeName(name.toLowerCase(Locale.ROOT));
-                    out.write("  if (" + varName + " && " + varName + " !== null) {\n");
-                    out.write("    params['" + name + "'] = " + varName + ";\n");
+                    out.write("  if (args." + varName + " && args." + varName + " !== null) {\n");
+                    out.write("    params['" + name + "'] = args." + varName + ";\n");
                     out.write("  }\n");
                 }
             }
         }
-
-        String methodCb = (type.equals(OTHER_ENDPOINT)) ? "requestOther" : "request";
-        String methodP = (type.equals(OTHER_ENDPOINT)) ? "requestPromiseOther" : "requestPromise";
-
-        // Is the consumer in callback or promise mode
-        out.write("  if (typeof callback === 'function') {\n");
         out.write(
-                "    this.api."
-                        + methodCb
+                "    return this.api.request"
                         + "('/"
                         + component
                         + "/"
@@ -193,26 +201,17 @@ public class NodeJSAPIGenerator extends AbstractAPIGenerator {
             out.write(", ");
             out.write(reqParams);
         }
-        out.write(", callback);\n");
-        out.write("    return;\n");
-        out.write("  }\n");
-        out.write(
-                "  return this.api."
-                        + methodP
-                        + "('/"
-                        + component
-                        + "/"
-                        + type
-                        + "/"
-                        + element.getName()
-                        + "/'");
-        if (hasParams) {
-            out.write(", ");
-            out.write(reqParams);
+        if (type.equals(OTHER_ENDPOINT)) {
+            out.write(", 'other'");
         }
-        out.write(");\n");
-
-        out.write("};\n\n");
+        String httpMethod = element.getDefaultMethod();
+        if (!HttpRequestHeader.GET.equalsIgnoreCase(httpMethod)) {
+            out.write(", '");
+            out.write(httpMethod);
+            out.write('\'');
+        }
+        out.write(")\n");
+        out.write("}\n\n");
     }
 
     private static String safeName(String name) {

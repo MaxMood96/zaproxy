@@ -32,6 +32,11 @@ import org.parosproxy.paros.extension.AbstractDialog;
 import org.parosproxy.paros.model.Model;
 import org.parosproxy.paros.model.OptionsParam;
 
+/**
+ * @deprecated (2.12.0) No longer in use.
+ */
+@Deprecated
+@SuppressWarnings("serial")
 public class ProxyDialog extends AbstractDialog {
 
     private static final long serialVersionUID = 1L;
@@ -74,6 +79,7 @@ public class ProxyDialog extends AbstractDialog {
 
         getConnPanel().passwordFocus();
     }
+
     /**
      * This method initializes jPanel
      *
@@ -81,7 +87,6 @@ public class ProxyDialog extends AbstractDialog {
      */
     private JPanel getJPanel() {
         if (jPanel == null) {
-            // TODO add a cancel button?
             // java.awt.GridBagConstraints gridBagConstraints7 = new GridBagConstraints();
             java.awt.GridBagConstraints gridBagConstraints6 = new GridBagConstraints();
             java.awt.GridBagConstraints gridBagConstraints5 = new GridBagConstraints();
@@ -134,6 +139,7 @@ public class ProxyDialog extends AbstractDialog {
 
         ProxyDialog.this.dispose();
     }
+
     /**
      * This method initializes btnOK
      *

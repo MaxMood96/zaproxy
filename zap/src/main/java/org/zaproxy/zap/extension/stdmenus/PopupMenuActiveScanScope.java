@@ -20,19 +20,25 @@
 package org.zaproxy.zap.extension.stdmenus;
 
 import javax.swing.ImageIcon;
-import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.control.Control;
 import org.parosproxy.paros.model.SiteNode;
 import org.zaproxy.zap.extension.ascan.ExtensionActiveScan;
 import org.zaproxy.zap.view.messagecontainer.http.HttpMessageContainer;
 import org.zaproxy.zap.view.popup.PopupMenuItemSiteNodeContainer;
 
+@SuppressWarnings("serial")
+@Deprecated
+/**
+ * @deprecated (2.15.0) The menu was replaced by PopupMenuActiveScanCustom a while ago.
+ */
 public class PopupMenuActiveScanScope extends PopupMenuItemSiteNodeContainer {
 
     private static final long serialVersionUID = 1L;
     private ExtensionActiveScan extension = null;
 
-    /** @param label */
+    /**
+     * @param label
+     */
     public PopupMenuActiveScanScope(String label) {
         super(label);
         this.setIcon(
@@ -53,16 +59,6 @@ public class PopupMenuActiveScanScope extends PopupMenuItemSiteNodeContainer {
     @Override
     public boolean isSubMenu() {
         return true;
-    }
-
-    @Override
-    public String getParentMenuName() {
-        return Constant.messages.getString("attack.site.popup");
-    }
-
-    @Override
-    public int getParentMenuIndex() {
-        return ATTACK_MENU_INDEX;
     }
 
     @Override

@@ -16,7 +16,7 @@ var install4jHomeDirValidated = false
 val install4jHomeDir: String? by project
 val install4jLicense: String? by project
 
-val install4jVersion = "8.0.7"
+val install4jVersion = "10.0.8"
 
 install4j {
     installDir = file("$install4jHomeDir")
@@ -24,32 +24,33 @@ install4j {
 }
 
 launch4j {
-    libraryDir = ""
-    copyConfigurable = listOf<String>()
+    libraryDir.set(".")
+    copyConfigurable.set(listOf<String>())
 
-    mainClassName = "org.zaproxy.zap.ZAP"
+    mainClassName.set("org.zaproxy.zap.ZAP")
 
-    dontWrapJar = true
+    dontWrapJar.set(true)
 
-    version = "${project.version}"
-    textVersion = "${project.version}"
+    version.set("${project.version}")
+    textVersion.set("${project.version}")
 
-    outfile = "ZAP.exe"
-    chdir = ""
-    icon = file("src/main/resources/resource/zap.ico").toString()
+    outfile.set("ZAP.exe")
+    chdir.set("")
+    icon.set(file("src/main/resources/resource/zap.ico").toString())
 
-    jdkPreference = "preferJdk"
-    maxHeapSize = 512
-    maxHeapPercent = 25
+    maxHeapSize.set(512)
+    maxHeapPercent.set(25)
 
-    fileDescription = "OWASP Zed Attack Proxy"
-    copyright = "The OWASP Zed Attack Proxy Project"
-    productName = "OWASP Zed Attack Proxy"
-    companyName = "OWASP"
-    internalName = "ZAP"
+    fileDescription.set("Zed Attack Proxy")
+    copyright.set("The Zed Attack Proxy Project")
+    productName.set("Zed Attack Proxy")
+    companyName.set("ZAP")
+    internalName.set("ZAP")
+
+    downloadUrl.set("https://adoptium.net/")
 }
 
-val installerDataDir = file("$buildDir/installerData/")
+val installerDataDir = layout.buildDirectory.dir("installerData").get().asFile
 val bundledAddOns: Any = provider {
     if (version.toString().endsWith("SNAPSHOT")) {
         file("src/main/dist/plugin")
@@ -103,77 +104,65 @@ val prepareWin64InstallerData by tasks.registering(Sync::class) {
     }
 }
 
-if (JavaVersion.current() >= JavaVersion.VERSION_11) {
+val installers by tasks.registering(Install4jTask::class) {
+    group = "Distribution"
+    description = "Creates the Linux and Windows installers."
+    dependsOn(
+            prepareCommonInstallerData,
+            prepareLinuxInstallerData,
+            prepareWin32InstallerData,
+            prepareWin64InstallerData)
 
-    val installers by tasks.registering(Install4jTask::class) {
-        group = "Distribution"
-        description = "Creates the Linux and Windows installers."
-        dependsOn(
-                prepareCommonInstallerData,
-                prepareLinuxInstallerData,
-                prepareWin32InstallerData,
-                prepareWin64InstallerData)
+    projectFile = file("src/main/installer/zap.install4j")
+    variables = mapOf("version" to version)
+    destination = layout.buildDirectory.dir("install4j").get().asFile
 
-        projectFile = file("src/main/installer/zap.install4j")
-        variables = mapOf("version" to version)
-        destination = "$buildDir/install4j"
+    doFirst {
+        require(install4jHomeDirValidated || install4jHomeDir != null) {
+            "The install4jHomeDir property must be set to build the installers."
+        }
+    }
+}
 
+if (install4jHomeDir == null && Os.isFamily(Os.FAMILY_UNIX)) {
+    val install4jVersionUnderscores = install4jVersion.replace('.', '_')
+    val install4jBinDir = layout.buildDirectory.dir("install4jBin").get().asFile
+    val install4jBinUnpackDir = File(install4jBinDir, "unpacked")
+    val install4jBinFile = File(install4jBinDir, "install4j.tar.gz")
+    val install4jDir = File(install4jBinUnpackDir, "install4j$install4jVersion")
+
+    val downloadInstall4jBin by tasks.registering(Download::class) {
+        src("https://download.ej-technologies.com/install4j/install4j_linux-x64_$install4jVersionUnderscores.tar.gz")
+        dest(install4jBinFile)
+        connectTimeout(60_000)
+        readTimeout(60_000)
+        onlyIfModified(true)
+    }
+
+    val verifyInstall4jBin by tasks.registering(Verify::class) {
+        dependsOn(downloadInstall4jBin)
+        src(install4jBinFile)
+        algorithm("SHA-256")
+        checksum("3d64c4a28d2b11ea26ae3cb8f1b0288de76811c1e0f37e06a2a4d8498b8130e7")
+    }
+
+    val unpackInstall4jBin by tasks.registering(Copy::class) {
+        dependsOn(verifyInstall4jBin)
+        from(tarTree(install4jBinFile))
+        into(install4jBinUnpackDir)
         doFirst {
-            require(install4jHomeDirValidated || install4jHomeDir != null) {
-                "The install4jHomeDir property must be set to build the installers."
-            }
+            delete(install4jBinUnpackDir)
         }
     }
 
-    if (install4jHomeDir == null && Os.isFamily(Os.FAMILY_UNIX)) {
-        val install4jVersionUnderscores = install4jVersion.replace('.', '_')
-        val install4jBinDir = file("$buildDir/install4jBin")
-        val install4jBinUnpackDir = File(install4jBinDir, "unpacked")
-        val install4jBinFile = File(install4jBinDir, "install4j.tar.gz")
-        val install4jDir = File(install4jBinUnpackDir, "install4j$install4jVersion")
-
-        val downloadInstall4jBin by tasks.registering(Download::class) {
-            src("https://download-gcdn.ej-technologies.com/install4j/install4j_unix_$install4jVersionUnderscores.tar.gz")
-            dest(install4jBinFile)
-            connectTimeout(60_000)
-            readTimeout(60_000)
-            onlyIfModified(true)
-        }
-
-        val verifyInstall4jBin by tasks.registering(Verify::class) {
-            dependsOn(downloadInstall4jBin)
-            src(install4jBinFile)
-            algorithm("SHA-256")
-            checksum("24321604dd196ce56eba90642c37437364be75b65138acb43c82503166d4da53")
-        }
-
-        val unpackInstall4jBin by tasks.registering(Copy::class) {
-            dependsOn(verifyInstall4jBin)
-            from(tarTree(install4jBinFile))
-            into(install4jBinUnpackDir)
-            doFirst {
-                delete(install4jBinUnpackDir)
-            }
-        }
-
-        installers {
-            dependsOn(unpackInstall4jBin)
-        }
-
-        install4j {
-            installDir = file("$install4jDir")
-        }
-
-        install4jHomeDirValidated = true
+    installers {
+        dependsOn(unpackInstall4jBin)
     }
-} else {
-    tasks.register("installers") {
-        group = "Distribution"
-        description = "Creates the Linux and Windows installers."
 
-        doFirst {
-            throw RuntimeException("The installers can only be built with Java 11+.")
-        }
+    install4j {
+        installDir = file("$install4jDir")
     }
+
+    install4jHomeDirValidated = true
 }
 

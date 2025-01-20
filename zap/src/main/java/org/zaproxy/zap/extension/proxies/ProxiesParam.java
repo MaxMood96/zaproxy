@@ -27,9 +27,12 @@ import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.common.AbstractParam;
-import org.parosproxy.paros.core.proxy.ProxyParam;
 import org.parosproxy.paros.model.Model;
 
+/**
+ * @deprecated (2.12.0) No longer used/needed. It will be removed in a future release.
+ */
+@Deprecated
 public class ProxiesParam extends AbstractParam {
 
     private static final Logger logger = LogManager.getLogger(ProxiesParam.class);
@@ -72,14 +75,15 @@ public class ProxiesParam extends AbstractParam {
                                 sub.getBoolean(PROXY_BEHIND_NAT_KEY, false)));
             }
         } catch (ConversionException e) {
-            logger.error("Error while loading proxies: " + e.getMessage(), e);
+            logger.error("Error while loading proxies: {}", e.getMessage(), e);
         }
 
         this.confirmRemoveProxy = getBoolean(CONFIRM_REMOVE_PROXY_KEY, true);
     }
 
     public ProxiesParamProxy getMainProxy() {
-        ProxyParam mainProxyParam = Model.getSingleton().getOptionsParam().getProxyParam();
+        org.parosproxy.paros.core.proxy.ProxyParam mainProxyParam =
+                Model.getSingleton().getOptionsParam().getProxyParam();
         ProxiesParamProxy mainProxy =
                 new ProxiesParamProxy(
                         mainProxyParam.getRawProxyIP(), mainProxyParam.getProxyPort(), true);
@@ -110,7 +114,8 @@ public class ProxiesParam extends AbstractParam {
     }
 
     public void setMainProxy(ProxiesParamProxy proxy) {
-        ProxyParam proxyParam = Model.getSingleton().getOptionsParam().getProxyParam();
+        org.parosproxy.paros.core.proxy.ProxyParam proxyParam =
+                Model.getSingleton().getOptionsParam().getProxyParam();
         proxyParam.setProxyIp(proxy.getAddress());
         proxyParam.setProxyPort(proxy.getPort());
         proxyParam.setAlwaysDecodeGzip(proxy.isAlwaysDecodeGzip());

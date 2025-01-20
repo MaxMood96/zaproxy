@@ -34,6 +34,7 @@ import org.zaproxy.zap.view.AbstractContextPropertiesPanel;
 import org.zaproxy.zap.view.AbstractMultipleOptionsTablePanel;
 import org.zaproxy.zap.view.LayoutHelper;
 
+@SuppressWarnings("serial")
 public class ContextUsersPanel extends AbstractContextPropertiesPanel {
 
     private UsersMultipleOptionsPanel usersOptionsPanel;
@@ -78,6 +79,7 @@ public class ContextUsersPanel extends AbstractContextPropertiesPanel {
         return "ui.dialogs.contexts";
     }
 
+    @SuppressWarnings("serial")
     public static class UsersMultipleOptionsPanel extends AbstractMultipleOptionsTablePanel<User> {
 
         private static final long serialVersionUID = -7216673905642941770L;
@@ -122,8 +124,7 @@ public class ContextUsersPanel extends AbstractContextPropertiesPanel {
 
             if (addDialog == null) {
                 addDialog =
-                        new DialogAddUser(
-                                View.getSingleton().getOptionsDialog(null), this.extension);
+                        new DialogAddUser(View.getSingleton().getSessionDialog(), this.extension);
                 addDialog.pack();
             }
             addDialog.setWorkingContext(this.uiSharedContext);
@@ -140,7 +141,7 @@ public class ContextUsersPanel extends AbstractContextPropertiesPanel {
             if (modifyDialog == null) {
                 modifyDialog =
                         new DialogModifyUser(
-                                View.getSingleton().getOptionsDialog(null), this.extension);
+                                View.getSingleton().getSessionDialog(), this.extension);
                 modifyDialog.pack();
             }
             modifyDialog.setWorkingContext(this.uiSharedContext);
@@ -160,7 +161,7 @@ public class ContextUsersPanel extends AbstractContextPropertiesPanel {
             Object[] messages = {REMOVE_DIALOG_TEXT, " ", removeWithoutConfirmationCheckBox};
             int option =
                     JOptionPane.showOptionDialog(
-                            View.getSingleton().getMainFrame(),
+                            View.getSingleton().getSessionDialog(),
                             messages,
                             REMOVE_DIALOG_TITLE,
                             JOptionPane.OK_CANCEL_OPTION,

@@ -39,6 +39,8 @@ public class SearchThread extends Thread {
 
     private static final String THREAD_NAME = "ZAP-SearchThread";
 
+    private static final int NOTE_EXTRACT_INDEX_OFFSET = 30;
+
     private String filter;
     private Pattern pattern;
     private Type reqType;
@@ -54,7 +56,7 @@ public class SearchThread extends Thread {
 
     private boolean searchAllOccurrences;
 
-    private static Logger log = LogManager.getLogger(SearchThread.class);
+    private static final Logger LOGGER = LogManager.getLogger(SearchThread.class);
 
     public SearchThread(
             String filter,
@@ -207,7 +209,9 @@ public class SearchThread extends Thread {
                                     HistoryReference.TYPE_PROXIED,
                                     HistoryReference.TYPE_ZAP_USER,
                                     HistoryReference.TYPE_SPIDER,
-                                    HistoryReference.TYPE_SPIDER_AJAX);
+                                    HistoryReference.TYPE_SPIDER_AJAX,
+                                    HistoryReference.TYPE_AUTHENTICATION,
+                                    HistoryReference.TYPE_CLIENT_SPIDER);
             int last = list.size();
             int currentRecordId = 0;
             for (int index = 0; index < last; index++) {
@@ -263,6 +267,42 @@ public class SearchThread extends Thread {
                                         urlStartPos + matcher.start(),
                                         urlStartPos + matcher.end());
 
+                                if (!searchAllOccurrences) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (Type.Tag.equals(reqType) && !pcc.allMatchesProcessed()) {
+                        for (String tag : message.getHistoryRef().getTags()) {
+                            matcher = pattern.matcher(tag);
+                            if (matcher.find()) {
+                                notifyMatchFound(currentRecordId, tag, message, null, 0, 0);
+                                break;
+                            }
+                        }
+                    }
+                    if (Type.Note.equals(reqType) && !pcc.allMatchesProcessed()) {
+                        String note = message.getNote();
+                        matcher = pattern.matcher(note);
+
+                        if (inverse && !pcc.allMatchesProcessed()) {
+                            if (!matcher.find()) {
+                                notifyMatchFound(currentRecordId, note, message, null, 0, 0);
+                            }
+                        } else {
+                            while (matcher.find()) {
+                                int noteExtractStart =
+                                        Math.max(matcher.start() - NOTE_EXTRACT_INDEX_OFFSET, 0);
+                                int noteExtractEnd =
+                                        Math.min(
+                                                matcher.end() + NOTE_EXTRACT_INDEX_OFFSET,
+                                                note.length());
+
+                                String noteExtract =
+                                        note.substring(noteExtractStart, noteExtractEnd);
+
+                                notifyMatchFound(currentRecordId, noteExtract, message, null, 0, 0);
                                 if (!searchAllOccurrences) {
                                     break;
                                 }
@@ -404,14 +444,14 @@ public class SearchThread extends Thread {
                     }
 
                 } catch (HttpMalformedHeaderException e1) {
-                    log.error(e1.getMessage(), e1);
+                    LOGGER.error(e1.getMessage(), e1);
                 }
                 if (pcc.hasPageEnded()) {
                     break;
                 }
             }
         } catch (DatabaseException e) {
-            log.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 

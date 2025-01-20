@@ -22,12 +22,16 @@ package org.zaproxy.zap.extension.api;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import org.parosproxy.paros.network.HttpRequestHeader;
 
 public class ApiElement {
 
+    private final String defaultMethod;
     private String name = null;
     private String descriptionTag = "";
     private List<ApiParameter> parameters = new ArrayList<>();
@@ -55,8 +59,7 @@ public class ApiElement {
     }
 
     public ApiElement(String name) {
-        super();
-        this.name = name;
+        this(name, List.of());
     }
 
     public ApiElement(String name, List<String> mandatoryParamNames) {
@@ -65,11 +68,23 @@ public class ApiElement {
 
     public ApiElement(
             String name, List<String> mandatoryParamNames, List<String> optionalParamNames) {
+        this(name, HttpRequestHeader.GET, mandatoryParamNames, optionalParamNames);
+    }
+
+    public ApiElement(
+            String name,
+            String defaultMethod,
+            List<String> mandatoryParamNames,
+            List<String> optionalParamNames) {
         super();
         this.name = name;
+        if (defaultMethod == null || defaultMethod.isBlank()) {
+            throw new IllegalArgumentException(
+                    "The ApiElement " + name + " has null or blank default method.");
+        }
+        this.defaultMethod = defaultMethod;
 
-        addParameters(mandatoryParamNames, true);
-        addParameters(optionalParamNames, false);
+        setParameters(mandatoryParamNames, optionalParamNames);
     }
 
     public ApiElement(String name, String[] mandatoryParamNames) {
@@ -84,26 +99,49 @@ public class ApiElement {
         return elements != null ? Arrays.asList(elements) : null;
     }
 
+    /**
+     * Gets the default (HTTP) method supported by this API element.
+     *
+     * @return the default method, never {@code null}.
+     * @since 2.15.0
+     */
+    public String getDefaultMethod() {
+        return defaultMethod;
+    }
+
     public void setMandatoryParamNames(String[] paramNames) {
         setMandatoryParamNames(asList(paramNames));
     }
 
     public void setMandatoryParamNames(List<String> paramNames) {
-        parameters.removeIf(ApiParameter::isRequired);
-
-        if (paramNames != null) {
-            List<ApiParameter> optionalParameters = parameters;
-            parameters = new ArrayList<>(optionalParameters.size() + paramNames.size());
-            addParameters(paramNames, true);
-            parameters.addAll(optionalParameters);
-        }
+        setParameters(paramNames, getOptionalParamNames());
     }
 
-    private void addParameters(List<String> names, boolean required) {
-        if (names == null) {
+    private void setParameters(List<String> mandatory, List<String> optional) {
+        List<ApiParameter> newParameters = new ArrayList<>();
+        var addedParams = new HashSet<String>();
+        if (mandatory != null) {
+            addParameters(addedParams, mandatory, true, newParameters);
+        }
+        if (optional != null) {
+            addParameters(addedParams, optional, false, newParameters);
+        }
+
+        parameters = newParameters;
+    }
+
+    private void addParameters(
+            Set<String> addedNames, List<String> from, boolean required, List<ApiParameter> to) {
+        if (from == null) {
             return;
         }
-        names.forEach(param -> parameters.add(new ApiParameter(param, "", required)));
+        for (var paramName : from) {
+            if (!addedNames.add(paramName)) {
+                throw new IllegalArgumentException(
+                        "The ApiElement " + name + " has duplicated parameter: " + paramName);
+            }
+            to.add(new ApiParameter(paramName, "", required));
+        }
     }
 
     public List<String> getMandatoryParamNames() {
@@ -139,8 +177,7 @@ public class ApiElement {
     }
 
     public void setOptionalParamNames(List<String> optionalParamNames) {
-        parameters.removeIf(e -> !e.isRequired());
-        addParameters(optionalParamNames, false);
+        setParameters(getMandatoryParamNames(), optionalParamNames);
     }
 
     /**
@@ -203,5 +240,15 @@ public class ApiElement {
      */
     public void setDeprecatedDescription(String description) {
         this.deprecatedDescription = description;
+    }
+
+    /**
+     * Gets the request type.
+     *
+     * @return the type, might be {@code null}.
+     * @since 2.14.0
+     */
+    public API.RequestType getType() {
+        return null;
     }
 }

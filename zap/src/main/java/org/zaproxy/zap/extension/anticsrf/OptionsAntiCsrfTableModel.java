@@ -24,6 +24,7 @@ import java.util.List;
 import org.parosproxy.paros.Constant;
 import org.zaproxy.zap.view.AbstractMultipleOptionsTableModel;
 
+@SuppressWarnings("serial")
 public class OptionsAntiCsrfTableModel
         extends AbstractMultipleOptionsTableModel<AntiCsrfParamToken> {
 
@@ -47,7 +48,9 @@ public class OptionsAntiCsrfTableModel
         return tokens;
     }
 
-    /** @param tokens The tokens to set. */
+    /**
+     * @param tokens The tokens to set.
+     */
     public void setTokens(List<AntiCsrfParamToken> tokens) {
         this.tokens = new ArrayList<>(tokens.size());
 

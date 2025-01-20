@@ -19,25 +19,19 @@
  */
 package org.zaproxy.zap.extension.api;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.zip.GZIPInputStream;
 import net.sf.json.JSON;
 import net.sf.json.JSONArray;
 import net.sf.json.JSONObject;
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.db.DatabaseException;
 import org.parosproxy.paros.model.HistoryReference;
-import org.parosproxy.paros.network.HttpHeader;
 import org.parosproxy.paros.network.HttpMessage;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -89,34 +83,13 @@ public final class ApiResponseConversionUtils {
         map.put("requestHeader", msg.getRequestHeader().toString());
         map.put("requestBody", msg.getRequestBody().toString());
         map.put("responseHeader", msg.getResponseHeader().toString());
-
-        if (HttpHeader.GZIP.equals(
-                msg.getResponseHeader().getHeader(HttpHeader.CONTENT_ENCODING))) {
-            // Uncompress gziped content
-            try (ByteArrayInputStream bais =
-                            new ByteArrayInputStream(msg.getResponseBody().getBytes());
-                    GZIPInputStream gis = new GZIPInputStream(bais);
-                    InputStreamReader isr = new InputStreamReader(gis);
-                    BufferedReader br = new BufferedReader(isr); ) {
-                StringBuilder sb = new StringBuilder();
-                String line = null;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line);
-                }
-                map.put("responseBody", sb.toString());
-            } catch (IOException e) {
-                LOGGER.error("Unable to uncompress gzip content: " + e.getMessage(), e);
-                map.put("responseBody", msg.getResponseBody().toString());
-            }
-        } else {
-            map.put("responseBody", msg.getResponseBody().toString());
-        }
+        map.put("responseBody", msg.getResponseBody().toString());
 
         List<String> tags = Collections.emptyList();
         try {
             tags = HistoryReference.getTags(historyId);
         } catch (DatabaseException e) {
-            LOGGER.warn("Failed to obtain the tags for message with ID " + historyId, e);
+            LOGGER.warn("Failed to obtain the tags for message with ID {}", historyId, e);
         }
         return new HttpMessageResponseSet(map, tags);
     }
@@ -154,7 +127,7 @@ public final class ApiResponseConversionUtils {
 
         @Override
         public void toHTML(StringBuilder sb) {
-            sb.append("<h2>" + StringEscapeUtils.escapeHtml(this.getName()) + "</h2>\n");
+            sb.append("<h2>" + StringEscapeUtils.escapeHtml4(this.getName()) + "</h2>\n");
             sb.append("<table border=\"1\">\n");
 
             for (Entry<String, String> entry : getValues().entrySet()) {
@@ -170,7 +143,7 @@ public final class ApiResponseConversionUtils {
             sb.append(cell1);
             sb.append("</td><td>\n");
             if (cell2 != null) {
-                sb.append(StringEscapeUtils.escapeHtml(cell2));
+                sb.append(StringEscapeUtils.escapeHtml4(cell2));
             }
             sb.append("</td></tr>\n");
         }

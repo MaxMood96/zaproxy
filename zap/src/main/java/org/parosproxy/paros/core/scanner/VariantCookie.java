@@ -35,7 +35,24 @@ public class VariantCookie implements Variant {
 
     private List<NameValuePair> params = Collections.emptyList();
 
-    /** @throws IllegalArgumentException if {@code message} is {@code null}. */
+    private boolean encodeCookieValues;
+
+    private static final String SHORT_NAME = "cookie";
+
+    public VariantCookie() {}
+
+    public VariantCookie(boolean encodeCookieValues) {
+        this.encodeCookieValues = encodeCookieValues;
+    }
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
+
+    /**
+     * @throws IllegalArgumentException if {@code message} is {@code null}.
+     */
     @Override
     public void setMessage(HttpMessage message) {
         if (message == null) {
@@ -84,8 +101,8 @@ public class VariantCookie implements Variant {
      * @param value the value that needs to be encoded, must not be {@code null}.
      * @return the encoded value
      */
-    private static String getEscapedValue(String value) {
-        return AbstractPlugin.getURLEncode(value);
+    private String getEscapedValue(String value) {
+        return encodeCookieValues ? AbstractPlugin.getURLEncode(value) : value;
     }
 
     /**
@@ -95,7 +112,7 @@ public class VariantCookie implements Variant {
      * @return the decoded value
      */
     private String getUnescapedValue(String value) {
-        return AbstractPlugin.getURLDecode(value);
+        return encodeCookieValues ? AbstractPlugin.getURLDecode(value) : value;
     }
 
     /**

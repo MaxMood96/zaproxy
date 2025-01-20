@@ -20,9 +20,13 @@
 package org.zaproxy.zap.spider;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.commons.configuration.ConversionException;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.commons.httpclient.URI;
@@ -30,9 +34,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.common.AbstractParam;
+import org.parosproxy.paros.control.Control;
 import org.zaproxy.zap.extension.api.ZapApiIgnore;
+import org.zaproxy.zap.extension.httpsessions.ExtensionHttpSessions;
 
-/** The SpiderParam wraps all the parameters that are given to the spider. */
+/**
+ * The SpiderParam wraps all the parameters that are given to the spider.
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
+ */
+@Deprecated
 public class SpiderParam extends AbstractParam {
 
     /**
@@ -119,6 +130,11 @@ public class SpiderParam extends AbstractParam {
      */
     private static final int DEFAULT_MAX_PARSE_SIZE_BYTES = 2621440; // 2.5 MiB
 
+    /** Configuration key to write/read the {@link #irrelevantUrlParameters} property. */
+    private static final String SPIDER_IRRELEVANT_URL_PARAMETERS = "spider.irrelevantUrlParameters";
+
+    private static ExtensionHttpSessions extensionHttpSessions;
+
     /**
      * This option is used to define how the parameters are used when checking if an URI was already
      * visited.
@@ -150,40 +166,55 @@ public class SpiderParam extends AbstractParam {
 
     /** The max depth of the crawling. */
     private int maxDepth = 5;
+
     /** The thread count. */
     private int threadCount = 2;
+
     /** Whether comments should be parsed for URIs. */
     private boolean parseComments = true;
+
     /** Whether robots.txt file should be parsed for URIs. */
     private boolean parseRobotsTxt = true;
+
     /** Whether sitemap.xml file should be parsed for URIs. */
     private boolean parseSitemapXml = true;
+
     /** Whether SVN entries files should be parsed for URIs. */
     private boolean parseSVNentries = false;
+
     /** Whether Git files should be parsed for URIs. */
     private boolean parseGit = false;
+
     /** Whether the forms are processed and submitted at all. */
     private boolean processForm = true;
+
     /**
      * Whether the forms are submitted, if their method is HTTP POST. This option should not be used
      * if the forms are not processed at all (processForm).
      */
     private boolean postForm = true;
+
     /** The waiting time between new requests to server - safe from DDOS. */
     private int requestWait = 200;
+
     /** Which urls are skipped. */
     private String skipURL = "";
+
     /** The pattern for skip url. */
     private Pattern patternSkipURL = null;
+
     /** The user agent string, if different than the default one. */
     private String userAgent = null;
+
     /** The handle parameters visited. */
     private HandleParametersOption handleParametersVisited = HandleParametersOption.USE_ALL;
+
     /**
      * Defines if we take care of OData specific parameters during the visit in order to identify
      * known URL *
      */
     private boolean handleODataParametersVisited = false;
+
     /** The maximum duration in minutes that the spider is allowed to run for, 0 meaning no limit */
     private int maxDuration = 0;
 
@@ -233,12 +264,24 @@ public class SpiderParam extends AbstractParam {
      */
     private int maxParseSizeBytes = DEFAULT_MAX_PARSE_SIZE_BYTES;
 
+    /**
+     * Parameter names which are ignored in the {@link URLCanonicalizer}.
+     *
+     * @see #SPIDER_IRRELEVANT_URL_PARAMETERS
+     */
+    private Set<String> irrelevantUrlParameters = Collections.emptySet();
+
     /** Instantiates a new spider param. */
     public SpiderParam() {}
 
     @Override
     protected void parse() {
         updateOptions();
+
+        extensionHttpSessions =
+                Control.getSingleton()
+                        .getExtensionLoader()
+                        .getExtension(ExtensionHttpSessions.class);
 
         this.threadCount = getInt(SPIDER_THREAD, 2);
 
@@ -298,6 +341,9 @@ public class SpiderParam extends AbstractParam {
         this.acceptCookies = getBoolean(SPIDER_ACCEPT_COOKIES, true);
 
         this.maxParseSizeBytes = getInt(SPIDER_MAX_PARSE_SIZE_BYTES, DEFAULT_MAX_PARSE_SIZE_BYTES);
+
+        this.irrelevantUrlParameters =
+                getStringSet(SPIDER_IRRELEVANT_URL_PARAMETERS, this.irrelevantUrlParameters);
     }
 
     private void updateOptions() {
@@ -334,7 +380,7 @@ public class SpiderParam extends AbstractParam {
                         Pattern pattern = Pattern.compile(domain, Pattern.CASE_INSENSITIVE);
                         domainsInScope.add(new DomainAlwaysInScopeMatcher(pattern));
                     } catch (IllegalArgumentException e) {
-                        log.error("Failed to migrate a domain always in scope, name: " + name, e);
+                        log.error("Failed to migrate a domain always in scope, name: {}", name, e);
                     }
                 } else {
                     domainsInScope.add(new DomainAlwaysInScopeMatcher(domain));
@@ -366,64 +412,6 @@ public class SpiderParam extends AbstractParam {
     public void setMaxDepth(int maxDepth) {
         this.maxDepth = maxDepth > UNLIMITED_DEPTH ? maxDepth : UNLIMITED_DEPTH;
         getConfig().setProperty(SPIDER_MAX_DEPTH, Integer.toString(this.maxDepth));
-    }
-
-    /**
-     * Gets the text describing the text.
-     *
-     * @return returns the scope.
-     * @deprecated (2.3.0) Replaced by {@link #getDomainsAlwaysInScope()} and {@link
-     *     #getDomainsAlwaysInScopeEnabled()}. <strong>Note:</strong> Newer regular expression
-     *     excluded domains will not be returned by this method.
-     */
-    @Deprecated
-    public String getScopeText() {
-        StringBuilder scopeTextStringBuilder = new StringBuilder("");
-        for (DomainAlwaysInScopeMatcher domainInScope : domainsAlwaysInScope) {
-            if (!domainInScope.isRegex()) {
-                scopeTextStringBuilder.append(domainInScope.getValue()).append(';');
-            }
-        }
-        return scopeTextStringBuilder.toString();
-    }
-
-    /**
-     * Gets the scope's regex.
-     *
-     * @return returns the scope.
-     * @deprecated (2.3.0) Replaced by {@link #getDomainsAlwaysInScope()} and {@link
-     *     #getDomainsAlwaysInScopeEnabled()}.
-     */
-    @Deprecated
-    public String getScope() {
-        StringBuilder scopeTextStringBuilder = new StringBuilder();
-        for (DomainAlwaysInScopeMatcher domainInScope : domainsAlwaysInScope) {
-            if (domainInScope.isRegex()) {
-                scopeTextStringBuilder.append("\\Q").append(domainInScope.getValue()).append("\\E");
-            } else {
-                scopeTextStringBuilder.append(domainInScope.getValue());
-            }
-            scopeTextStringBuilder.append('|');
-        }
-
-        if (scopeTextStringBuilder.length() != 0) {
-            scopeTextStringBuilder.append("(");
-            scopeTextStringBuilder.replace(
-                    scopeTextStringBuilder.length() - 1, scopeTextStringBuilder.length() - 1, ")$");
-        }
-
-        return scopeTextStringBuilder.toString();
-    }
-
-    /**
-     * Sets the scope string.
-     *
-     * @param scope The scope string to set.
-     * @deprecated (2.3.0) Replaced by {@link #setDomainsAlwaysInScope(List)}
-     */
-    @Deprecated
-    public void setScopeString(String scope) {
-        setDomainsAlwaysInScope(convertOldDomainsInScopeOption(scope));
     }
 
     /**
@@ -827,7 +815,8 @@ public class SpiderParam extends AbstractParam {
                     excludedDomain = new DomainAlwaysInScopeMatcher(pattern);
                 } catch (IllegalArgumentException e) {
                     log.error(
-                            "Failed to read an spider domain in scope entry with regex: " + value,
+                            "Failed to read an spider domain in scope entry with regex: {}",
+                            value,
                             e);
                 }
             } else {
@@ -971,9 +960,8 @@ public class SpiderParam extends AbstractParam {
      * <ul>
      *   <li>This option has low priority, the Spider will respect other (global) options related to
      *       the HTTP state. This option is ignored if, for example, a {@link
-     *       org.zaproxy.zap.users.User User} was set or the option {@link
-     *       org.parosproxy.paros.network.ConnectionParam#isHttpStateEnabled() Session Tracking
-     *       (Cookie)} is enabled.
+     *       org.zaproxy.zap.users.User User} was set or the option Enable (Global) HTTP State is
+     *       enabled.
      *   <li>The cookies are not shared between spider processes, each process has its own cookie
      *       jar.
      * </ul>
@@ -1025,5 +1013,54 @@ public class SpiderParam extends AbstractParam {
      */
     public int getMaxParseSizeBytes() {
         return maxParseSizeBytes;
+    }
+
+    public Set<String> getIrrelevantUrlParameters() {
+        return irrelevantUrlParameters;
+    }
+
+    public void setIrrelevantUrlParameters(Set<String> irrelevantUrlParameters) {
+        this.irrelevantUrlParameters = irrelevantUrlParameters;
+        getConfig().setProperty(SPIDER_IRRELEVANT_URL_PARAMETERS, irrelevantUrlParameters);
+    }
+
+    public String getIrrelevantUrlParametersAsString() {
+        return this.getIrrelevantUrlParameters().stream().collect(Collectors.joining(", "));
+    }
+
+    public void setIrrelevantUrlParameters(String irrelevantUrlParameters) {
+        this.setIrrelevantUrlParameters(
+                (Set<String>)
+                        Arrays.stream(irrelevantUrlParameters.split(","))
+                                .map(String::trim)
+                                .filter(str -> !str.isEmpty())
+                                .collect(Collectors.toCollection(LinkedHashSet::new)));
+    }
+
+    public boolean isIrrelevantUrlParameter(String name) {
+        return getIrrelevantUrlParameters().contains(name)
+                || name.startsWith("utm_")
+                || isSessionToken(name);
+    }
+
+    private static boolean isSessionToken(String paramName) {
+        if (extensionHttpSessions == null) {
+            return false;
+        }
+        return extensionHttpSessions.isDefaultSessionToken(paramName);
+    }
+
+    private Set<String> getStringSet(String key, Set<String> defaultSet) {
+        try {
+            List<Object> parsedList = getConfig().getList(key, Collections.emptyList());
+            return parsedList.isEmpty()
+                    ? defaultSet
+                    : parsedList.stream()
+                            .map(Object::toString)
+                            .collect(Collectors.toCollection(LinkedHashSet::new));
+        } catch (ConversionException e) {
+            logConversionException(key, e);
+        }
+        return defaultSet;
     }
 }

@@ -45,7 +45,7 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.codehaus.jackson.JsonFactory;
@@ -67,7 +67,9 @@ import org.zaproxy.zap.network.HttpRequestBody;
  * @see <a href="http://www.softwareishard.com/blog/har-12-spec/">HTTP Archive 1.2</a>
  * @since 2.3.0
  * @see HttpMessage
+ * @deprecated (2.16.0) Use/rely on exim add-on.
  */
+@Deprecated(forRemoval = true, since = "2.16.0")
 public final class HarUtils {
 
     private static final Logger LOGGER = LogManager.getLogger(HarUtils.class);
@@ -240,8 +242,8 @@ public final class HarUtils {
             }
         } catch (IllegalArgumentException e) {
             LOGGER.warn(
-                    "Ignoring cookies for HAR (\"request\") \"cookies\" list. Request contains invalid cookie: "
-                            + e.getMessage());
+                    "Ignoring cookies for HAR (\"request\") \"cookies\" list. Request contains invalid cookie: {}",
+                    e.getMessage());
         }
 
         HarQueryString harQueryString = new HarQueryString();

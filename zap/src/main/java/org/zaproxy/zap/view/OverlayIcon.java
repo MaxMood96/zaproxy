@@ -30,6 +30,7 @@ import javax.swing.ImageIcon;
  *
  * @author psiinon
  */
+@SuppressWarnings("serial")
 public class OverlayIcon extends ImageIcon {
     private static final long serialVersionUID = 1L;
     private ImageIcon base;
@@ -43,6 +44,19 @@ public class OverlayIcon extends ImageIcon {
 
     public void add(ImageIcon overlay) {
         overlays.add(overlay);
+    }
+
+    public OverlayIcon getScaledInstance(int width, int height, int hints) {
+        if (base.getIconWidth() >= width && base.getIconHeight() >= height) {
+            return this;
+        }
+        OverlayIcon scaledIcon = new OverlayIcon(getScaledIcon(base, width, height, hints));
+        overlays.forEach(o -> scaledIcon.add(getScaledIcon(o, width, height, hints)));
+        return scaledIcon;
+    }
+
+    private static ImageIcon getScaledIcon(ImageIcon icon, int width, int height, int hints) {
+        return new ImageIcon(icon.getImage().getScaledInstance(width, height, hints));
     }
 
     @Override

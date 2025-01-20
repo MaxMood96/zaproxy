@@ -37,10 +37,11 @@
 // ZAP: 2019/09/30 Use instance variable for view checks.
 // ZAP: 2020/08/04 Changed to use new SessionStructure method
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/08/22 Do not modify the requests being proxied (Issue 7353).
 package org.parosproxy.paros.extension.history;
 
 import java.awt.EventQueue;
-import org.apache.commons.httpclient.URIException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -55,12 +56,11 @@ import org.parosproxy.paros.network.HttpMalformedHeaderException;
 import org.parosproxy.paros.network.HttpMessage;
 import org.parosproxy.paros.network.HttpStatusCode;
 import org.zaproxy.zap.model.SessionStructure;
-import org.zaproxy.zap.model.StructuralNode;
 
 public class ProxyListenerLog implements ProxyListener, ConnectRequestProxyListener {
 
     // ZAP: Added logger
-    private static final Logger log = LogManager.getLogger(ProxyListenerLog.class);
+    private static final Logger LOGGER = LogManager.getLogger(ProxyListenerLog.class);
 
     // ZAP: Must be the last one of all listeners to be notified, as is the one that saves the
     // HttpMessage
@@ -89,34 +89,6 @@ public class ProxyListenerLog implements ProxyListener, ConnectRequestProxyListe
 
     @Override
     public boolean onHttpRequestSend(HttpMessage msg) {
-        //	    if (msg.getRequestHeader().isImage()) {
-        //	        return;
-        //	    }
-
-        try {
-            StructuralNode node = SessionStructure.find(model, msg);
-            if (node != null) {
-                HttpMessage existingMsg = node.getHistoryReference().getHttpMessage();
-                // check if a msg of the same type exist
-                if (existingMsg != null && !existingMsg.getResponseHeader().isEmpty()) {
-                    if (HttpStatusCode.isSuccess(existingMsg.getResponseHeader().getStatusCode())) {
-                        // exist, no modification necessary
-                        return true;
-                    }
-                }
-            }
-        } catch (URIException | DatabaseException | HttpMalformedHeaderException e) {
-            log.warn("Failed to check if message already exists:", e);
-        }
-
-        // if not, make sure a new copy will be obtained
-        if (msg.getRequestHeader().getHeader(HttpHeader.IF_MODIFIED_SINCE) != null) {
-            msg.getRequestHeader().setHeader(HttpHeader.IF_MODIFIED_SINCE, null);
-        }
-
-        if (msg.getRequestHeader().getHeader(HttpHeader.IF_NONE_MATCH) != null) {
-            msg.getRequestHeader().setHeader(HttpHeader.IF_NONE_MATCH, null);
-        }
         return true;
     }
 
@@ -166,7 +138,7 @@ public class ProxyListenerLog implements ProxyListener, ConnectRequestProxyListe
         try {
             addToSiteMap(historyRef, historyRef.getHttpMessage());
         } catch (HttpMalformedHeaderException | DatabaseException e) {
-            log.warn("Failed to add the message to Sites tree:", e);
+            LOGGER.warn("Failed to add the message to Sites tree:", e);
         }
 
         ProxyListenerLogEventPublisher.getPublisher().publishHrefAddedEvent(historyRef);
@@ -177,7 +149,7 @@ public class ProxyListenerLog implements ProxyListener, ConnectRequestProxyListe
             return new HistoryReference(model.getSession(), type, message);
         } catch (Exception e) {
             // ZAP: Log exceptions
-            log.warn(e.getMessage(), e);
+            LOGGER.warn(e.getMessage(), e);
         }
         return null;
     }
@@ -194,7 +166,7 @@ public class ProxyListenerLog implements ProxyListener, ConnectRequestProxyListe
                         });
             } catch (Exception e) {
                 // ZAP: Log exceptions
-                log.warn(e.getMessage(), e);
+                LOGGER.warn(e.getMessage(), e);
             }
             return;
         }

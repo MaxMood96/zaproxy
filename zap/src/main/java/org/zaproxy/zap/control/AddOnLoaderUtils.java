@@ -27,7 +27,6 @@ import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.core.scanner.AbstractPlugin;
-import org.zaproxy.zap.extension.pscan.PluginPassiveScanner;
 
 /**
  * A class with utility methods to help with add-on loading and (un)installation.
@@ -89,26 +88,21 @@ final class AddOnLoaderUtils {
         try {
             cls = addOnClassLoader.loadClass(classname);
         } catch (ClassNotFoundException e) {
-            LOGGER.error("Declared \"" + type + "\" was not found: " + classname, e);
+            LOGGER.error("Declared \"{}\" was not found: {}", type, classname, e);
             return null;
         } catch (LinkageError e) {
-            LOGGER.error("Declared \"" + type + "\" could not be loaded: " + classname, e);
+            LOGGER.error("Declared \"{}\" could not be loaded: {}", type, classname, e);
             return null;
         }
 
         if (Modifier.isAbstract(cls.getModifiers()) || Modifier.isInterface(cls.getModifiers())) {
-            LOGGER.error("Declared \"" + type + "\" is abstract or an interface: " + classname);
+            LOGGER.error("Declared \"{}\" is abstract or an interface: {}", type, classname);
             return null;
         }
 
         if (!clazz.isAssignableFrom(cls)) {
             LOGGER.error(
-                    "Declared \""
-                            + type
-                            + "\" is not of type \""
-                            + clazz.getName()
-                            + "\": "
-                            + classname);
+                    "Declared \"{}\" is not of type \"{}\": {}", type, clazz.getName(), classname);
             return null;
         }
 
@@ -117,7 +111,7 @@ final class AddOnLoaderUtils {
             Constructor<T> c = (Constructor<T>) cls.getConstructor();
             return c.newInstance();
         } catch (LinkageError | Exception e) {
-            LOGGER.error("Failed to initialise: " + classname, e);
+            LOGGER.error("Failed to initialise: {}", classname, e);
         }
         return null;
     }
@@ -191,37 +185,6 @@ final class AddOnLoaderUtils {
             addOn.setLoadedAscanrules(ascanrules);
             addOn.setLoadedAscanrulesSet(true);
             return Collections.unmodifiableList(ascanrules);
-        }
-    }
-
-    /**
-     * Gets the passive scan rules of the given {@code addOn}. The passive scan rules are first
-     * loaded, if they weren't already.
-     *
-     * @param addOn the add-on whose passive scan rules will be returned
-     * @param addOnClassLoader the {@code AddOnClassLoader} of the given {@code addOn}
-     * @return an unmodifiable {@code List} with the passive scan rules, never {@code null}
-     * @throws IllegalArgumentException if any of the parameters is {@code null}.
-     */
-    public static List<PluginPassiveScanner> getPassiveScanRules(
-            AddOn addOn, AddOnClassLoader addOnClassLoader) {
-        validateNotNull(addOn, "addOn");
-        validateNotNull(addOnClassLoader, "addOnClassLoader");
-
-        synchronized (addOn) {
-            if (addOn.isLoadedPscanrulesSet()) {
-                return addOn.getLoadedPscanrules();
-            }
-
-            List<PluginPassiveScanner> pscanrules =
-                    loadDeclaredClasses(
-                            addOnClassLoader,
-                            addOn.getPscanrules(),
-                            PluginPassiveScanner.class,
-                            "pscanrule");
-            addOn.setLoadedPscanrules(pscanrules);
-            addOn.setLoadedPscanrulesSet(true);
-            return Collections.unmodifiableList(pscanrules);
         }
     }
 

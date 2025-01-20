@@ -3,7 +3,6 @@
 // But it can be easily changed.
 
 var Pattern = Java.type("java.util.regex.Pattern")
-var model = Java.type("org.parosproxy.paros.model.Model").getSingleton()
 
 pluginid = 100000	// https://github.com/zaproxy/zaproxy/blob/main/docs/scanners.md
 
@@ -12,13 +11,12 @@ function sendingRequest(msg, initiator, helper) {
 }
 
 function responseReceived(msg, initiator, helper) {
-	if (isGloballyExcluded(msg) || initiator == 7) { // CHECK_FOR_UPDATES_INITIATOR
+	if (isGloballyExcluded(msg)) {
 		// Not of interest.
 		return
 	}
 
-	var extensionAlert = org.parosproxy.paros.control.Control.getSingleton().getExtensionLoader().getExtension(
-		org.zaproxy.zap.extension.alert.ExtensionAlert.NAME)
+	var extensionAlert = control.getExtensionLoader().getExtension(org.zaproxy.zap.extension.alert.ExtensionAlert.NAME)
 	if (extensionAlert != null) {
 		var code = msg.getResponseHeader().getStatusCode()
 		if (code < 400 || code >= 600) {
@@ -71,8 +69,7 @@ function responseReceived(msg, initiator, helper) {
 						type = 15 // User - fallback
 						break
 				}
-				ref = new org.parosproxy.paros.model.HistoryReference(
-					org.parosproxy.paros.model.Model.getSingleton().getSession(), type, msg)
+				ref = new org.parosproxy.paros.model.HistoryReference(model.getSession(), type, msg)
 			}
 			alert.setMessage(msg)
 			alert.setUri(msg.getRequestHeader().getURI().toString())

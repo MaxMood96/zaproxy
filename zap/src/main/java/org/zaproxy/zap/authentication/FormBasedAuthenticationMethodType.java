@@ -70,7 +70,7 @@ public class FormBasedAuthenticationMethodType extends PostBasedAuthenticationMe
                 } catch (UnsupportedEncodingException ignore) {
                     // Standard charset.
                 } catch (IllegalArgumentException e) {
-                    LOGGER.debug("Failed to URL decode: " + value, e);
+                    LOGGER.debug("Failed to URL decode: {}", value, e);
                 }
                 return "";
             };
@@ -114,7 +114,7 @@ public class FormBasedAuthenticationMethodType extends PostBasedAuthenticationMe
         }
 
         @Override
-        protected AuthenticationMethod duplicate() {
+        public AuthenticationMethod duplicate() {
             return new FormBasedAuthenticationMethod(this);
         }
 
@@ -177,7 +177,7 @@ public class FormBasedAuthenticationMethodType extends PostBasedAuthenticationMe
 
     @Override
     public boolean isTypeForMethod(AuthenticationMethod method) {
-        return method instanceof FormBasedAuthenticationMethod;
+        return method != null && FormBasedAuthenticationMethod.class.equals(method.getClass());
     }
 
     @Override

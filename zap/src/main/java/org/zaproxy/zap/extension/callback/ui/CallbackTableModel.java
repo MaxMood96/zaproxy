@@ -22,6 +22,10 @@ package org.zaproxy.zap.extension.callback.ui;
 import java.util.ArrayList;
 import org.parosproxy.paros.Constant;
 
+/**
+ * @deprecated (2.11.0) Superseded by the OAST add-on.
+ */
+@Deprecated
 public class CallbackTableModel
         extends DefaultCustomColumnHistoryReferencesTableModel<CallbackRequest> {
 
@@ -50,7 +54,7 @@ public class CallbackTableModel
     }
 
     private static CustomColumn<CallbackRequest> createHandlerColumn() {
-        return new CustomColumn<CallbackRequest>(
+        return new CustomColumn<>(
                 String.class, Constant.messages.getString("callback.panel.table.column.handler")) {
 
             @Override
@@ -61,7 +65,7 @@ public class CallbackTableModel
     }
 
     private static CustomColumn<CallbackRequest> createRefererColumn() {
-        return new CustomColumn<CallbackRequest>(
+        return new CustomColumn<>(
                 String.class, Constant.messages.getString("callback.panel.table.column.referer")) {
 
             @Override

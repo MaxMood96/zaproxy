@@ -34,10 +34,13 @@
 // ZAP: 2019/06/01 Normalise line endings.
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2021/05/14 Remove empty statement.
+// ZAP: 2023/07/06 Deprecate getter/setter for delayInMs.
 package org.parosproxy.paros.core.scanner;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import org.apache.commons.configuration.Configuration;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.control.AddOn;
@@ -181,6 +184,16 @@ public interface Plugin extends Runnable, ExampleAlertProvider {
     String getReference();
 
     /**
+     * Gets the tags attached to the alerts raised by this plugin.
+     *
+     * @return the alert tags
+     * @since 2.11.0
+     */
+    default Map<String, String> getAlertTags() {
+        return Collections.emptyMap();
+    }
+
+    /**
      * Plugin must implement this to notify when completed.
      *
      * @param parent the parent {@code HostProcess}
@@ -209,9 +222,23 @@ public interface Plugin extends Runnable, ExampleAlertProvider {
     // ZAP Added isDepreciated, getDelayInMs, setDelayInMs
     boolean isDepreciated();
 
-    int getDelayInMs();
+    /**
+     * @deprecated (2.13.0) This functionality has been superseded with the rate limiting provided
+     *     by the Network add-on. It will be removed in a future release.
+     * @return the number of milliseconds to wait before sending a request.
+     */
+    @Deprecated(since = "2.13.0", forRemoval = true)
+    default int getDelayInMs() {
+        return 0;
+    }
 
-    void setDelayInMs(int delay);
+    /**
+     * @deprecated (2.13.0) This functionality has been superseded with the rate limiting provided
+     *     by the Network add-on. It will be removed in a future release.
+     * @param delay the number of milliseconds to wait before sending a request.
+     */
+    @Deprecated(since = "2.13.0", forRemoval = true)
+    default void setDelayInMs(int delay) {}
 
     /**
      * The alert threshold for this plugin, i.e. the level of certainty required to report an alert
@@ -385,4 +412,12 @@ public interface Plugin extends Runnable, ExampleAlertProvider {
     default List<Alert> getExampleAlerts() {
         return null;
     }
+
+    /**
+     * Gets the name of the scan rule, falling back to the simple name of the class as last resort.
+     *
+     * @return a name representing the scan rule.
+     * @since 2.12.0
+     */
+    String getDisplayName();
 }

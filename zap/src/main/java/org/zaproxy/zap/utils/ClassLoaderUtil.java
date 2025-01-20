@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -79,9 +79,7 @@ public class ClassLoaderUtil {
         URL[] urls = sysLoader.getURLs();
         for (int i = 0; i < urls.length; i++) {
             if (StringUtils.equalsIgnoreCase(urls[i].toString(), u.toString())) {
-                if (log.isDebugEnabled()) {
-                    log.debug("URL " + u + " is already in the CLASSPATH");
-                }
+                log.debug("URL {} is already in the CLASSPATH", u);
                 return;
             }
         }

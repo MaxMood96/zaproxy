@@ -35,6 +35,9 @@
 // ZAP: 2019/11/05 Use WritableFileChooser for saves.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
 // ZAP: 2021/04/08 Name logger (LOG) fullcaps as constant, use LF as EOL for text file content
+// ZAP: 2022/02/08 Use isEmpty where applicable.
+// ZAP: 2022/05/13 Deprecated for relocation to exim.
+// ZAP: 2022/08/05 Address warns with Java 18 (Issue 7389).
 package org.parosproxy.paros.extension.history;
 
 import java.io.BufferedWriter;
@@ -54,6 +57,11 @@ import org.parosproxy.paros.model.HistoryReference;
 import org.parosproxy.paros.network.HttpMessage;
 import org.zaproxy.zap.view.widgets.WritableFileChooser;
 
+/**
+ * @deprecated (2.12.0) see the exim add-on
+ */
+@Deprecated
+@SuppressWarnings("serial")
 public class PopupMenuExportMessage extends JMenuItem {
 
     private static final long serialVersionUID = 1L;
@@ -73,7 +81,7 @@ public class PopupMenuExportMessage extends JMenuItem {
                     public void actionPerformed(java.awt.event.ActionEvent e) {
 
                         List<HistoryReference> hrefs = extension.getSelectedHistoryReferences();
-                        if (hrefs.size() == 0) {
+                        if (hrefs.isEmpty()) {
                             extension
                                     .getView()
                                     .showWarningDialog(

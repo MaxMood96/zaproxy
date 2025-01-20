@@ -28,6 +28,7 @@ import org.zaproxy.zap.view.AbstractMultipleOptionsTableModel;
  * The OptionsHttpSessionsTableModel is used as a table model to display the token names for {@link
  * OptionsHttpSessionsPanel}.
  */
+@SuppressWarnings("serial")
 public class OptionsHttpSessionsTableModel
         extends AbstractMultipleOptionsTableModel<HttpSessionToken> {
 
@@ -59,7 +60,9 @@ public class OptionsHttpSessionsTableModel
         return tokens;
     }
 
-    /** @param tokens The tokens to set. */
+    /**
+     * @param tokens The tokens to set.
+     */
     public void setTokens(List<HttpSessionToken> tokens) {
         this.tokens = new ArrayList<>(tokens.size());
 

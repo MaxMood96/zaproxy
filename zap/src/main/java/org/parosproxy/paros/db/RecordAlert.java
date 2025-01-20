@@ -27,6 +27,8 @@
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2019/10/10 Remove old alert update that split the param/attack.
 // ZAP: 2020/11/03 Add alertRef field.
+// ZAP: 2021/04/30 Add input vector to Alert
+// ZAP: 2022/02/03 Removed deprecated getReliability() and setReliability()
 package org.parosproxy.paros.db;
 
 public class RecordAlert {
@@ -46,6 +48,7 @@ public class RecordAlert {
     private String reference = "";
     private int historyId = 0;
     private String evidence = "";
+    private String inputVector;
     private int cweId = -1;
     private int wascId = -1;
     // ZAP: Added sourceHistoryId to RecordAlert - this is the original record that 'caused' the
@@ -76,7 +79,8 @@ public class RecordAlert {
             int historyId,
             int sourceHistoryId,
             int sourceId,
-            String alertRef) {
+            String alertRef,
+            String inputVector) {
         setAlertId(alertId);
         setScanId(scanId);
         setPluginId(pluginId);
@@ -93,137 +97,205 @@ public class RecordAlert {
         setHistoryId(historyId);
         setSourceHistoryId(sourceHistoryId);
         setEvidence(evidence);
+        setInputVector(inputVector);
         setCweId(cweId);
         setWascId(wascId);
         setSourceId(sourceId);
         setAlertRef(alertRef);
     }
 
-    /** @return Returns the alert. */
+    /**
+     * @return Returns the alert.
+     */
     public String getAlert() {
         return alert;
     }
-    /** @param alert The alert to set. */
+
+    /**
+     * @param alert The alert to set.
+     */
     public void setAlert(String alert) {
         this.alert = alert;
     }
-    /** @return Returns the alertId. */
+
+    /**
+     * @return Returns the alertId.
+     */
     public int getAlertId() {
         return alertId;
     }
-    /** @param alertId The alertId to set. */
+
+    /**
+     * @param alertId The alertId to set.
+     */
     public void setAlertId(int alertId) {
         this.alertId = alertId;
     }
-    /** @return Returns the description. */
+
+    /**
+     * @return Returns the description.
+     */
     public String getDescription() {
         return description;
     }
-    /** @param description The description to set. */
+
+    /**
+     * @param description The description to set.
+     */
     public void setDescription(String description) {
         this.description = description;
     }
-    /** @return Returns the otherInfo. */
+
+    /**
+     * @return Returns the otherInfo.
+     */
     public String getOtherInfo() {
         return otherInfo;
     }
-    /** @param otherInfo The otherInfo to set. */
+
+    /**
+     * @param otherInfo The otherInfo to set.
+     */
     public void setOtherInfo(String otherInfo) {
         this.otherInfo = otherInfo;
     }
-    /** @return Returns the pluginId. */
+
+    /**
+     * @return Returns the pluginId.
+     */
     public int getPluginId() {
         return pluginId;
     }
-    /** @param pluginId The pluginId to set. */
+
+    /**
+     * @param pluginId The pluginId to set.
+     */
     public void setPluginId(int pluginId) {
         this.pluginId = pluginId;
     }
-    /** @return Returns the query. */
+
+    /**
+     * @return Returns the query.
+     */
     public String getParam() {
         return param;
     }
-    /** @param query The query to set. */
+
+    /**
+     * @param query The query to set.
+     */
     public void setParam(String query) {
         this.param = query;
     }
-    /** @return Returns the reference. */
+
+    /**
+     * @return Returns the reference.
+     */
     public String getReference() {
         return reference;
     }
-    /** @param reference The reference to set. */
+
+    /**
+     * @param reference The reference to set.
+     */
     public void setReference(String reference) {
         this.reference = reference;
     }
+
     /**
-     * @deprecated (2.4.0) Replaced by {@link #getConfidence()}.
-     * @return the reliability.
+     * @return the confidence.
      */
-    @Deprecated
-    public int getReliability() {
-        return confidence;
-    }
-    /**
-     * @deprecated (2.4.0) Replaced by {@link #setConfidence(int)}.
-     * @param confidence The reliability to set.
-     */
-    @Deprecated
-    public void setReliability(int confidence) {
-        this.confidence = confidence;
-    }
-    /** @return the confidence. */
     public int getConfidence() {
         return confidence;
     }
-    /** @param confidence the confidence to set. */
+
+    /**
+     * @param confidence the confidence to set.
+     */
     public void setConfidence(int confidence) {
         this.confidence = confidence;
     }
-    /** @return Returns the risk. */
+
+    /**
+     * @return Returns the risk.
+     */
     public int getRisk() {
         return risk;
     }
-    /** @param risk The risk to set. */
+
+    /**
+     * @param risk The risk to set.
+     */
     public void setRisk(int risk) {
         this.risk = risk;
     }
-    /** @return Returns the scanId. */
+
+    /**
+     * @return Returns the scanId.
+     */
     public int getScanId() {
         return scanId;
     }
-    /** @param scanId The scanId to set. */
+
+    /**
+     * @param scanId The scanId to set.
+     */
     public void setScanId(int scanId) {
         this.scanId = scanId;
     }
-    /** @return Returns the solution. */
+
+    /**
+     * @return Returns the solution.
+     */
     public String getSolution() {
         return solution;
     }
-    /** @param solution The solution to set. */
+
+    /**
+     * @param solution The solution to set.
+     */
     public void setSolution(String solution) {
         this.solution = solution;
     }
-    /** @return Returns the uri. */
+
+    /**
+     * @return Returns the uri.
+     */
     public String getUri() {
         return uri;
     }
-    /** @param uri The uri to set. */
+
+    /**
+     * @param uri The uri to set.
+     */
     public void setUri(String uri) {
         this.uri = uri;
     }
-    /** @return Returns the historyId. */
+
+    /**
+     * @return Returns the historyId.
+     */
     public int getHistoryId() {
         return historyId;
     }
-    /** @param historyId The historyId to set. */
+
+    /**
+     * @param historyId The historyId to set.
+     */
     public void setHistoryId(int historyId) {
         this.historyId = historyId;
     }
-    /** @return Returns the sourceHistoryId. */
+
+    /**
+     * @return Returns the sourceHistoryId.
+     */
     public int getSourceHistoryId() {
         return sourceHistoryId;
     }
-    /** @param sourceHistoryId The sourceHistoryId to set. */
+
+    /**
+     * @param sourceHistoryId The sourceHistoryId to set.
+     */
     public void setSourceHistoryId(int sourceHistoryId) {
         this.sourceHistoryId = sourceHistoryId;
     }
@@ -242,6 +314,14 @@ public class RecordAlert {
 
     public void setEvidence(String evidence) {
         this.evidence = evidence;
+    }
+
+    public String getInputVector() {
+        return inputVector;
+    }
+
+    public void setInputVector(String inputVector) {
+        this.inputVector = inputVector;
     }
 
     public int getCweId() {

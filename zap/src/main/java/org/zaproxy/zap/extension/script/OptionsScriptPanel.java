@@ -25,15 +25,16 @@ import java.io.File;
 import java.util.List;
 import javax.swing.JCheckBox;
 import javax.swing.JFileChooser;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.SortOrder;
 import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.model.OptionsParam;
 import org.parosproxy.paros.view.AbstractParamPanel;
 import org.parosproxy.paros.view.View;
+import org.zaproxy.zap.utils.ZapHtmlLabel;
 import org.zaproxy.zap.view.AbstractMultipleOptionsBaseTablePanel;
 
+@SuppressWarnings("serial")
 public class OptionsScriptPanel extends AbstractParamPanel {
 
     private static final long serialVersionUID = 1L;
@@ -41,6 +42,7 @@ public class OptionsScriptPanel extends AbstractParamPanel {
     private ExtensionScript extension;
     private AntiCsrfMultipleOptionsPanel tokensOptionsPanel;
     private OptionsScriptTableModel scriptDirModel = null;
+    private JCheckBox enableScriptsFromDirs;
 
     public OptionsScriptPanel(ExtensionScript extension) {
         super();
@@ -59,8 +61,14 @@ public class OptionsScriptPanel extends AbstractParamPanel {
         gbc.anchor = GridBagConstraints.LINE_START;
         gbc.fill = GridBagConstraints.BOTH;
 
-        this.add(new JLabel(Constant.messages.getString("options.script.label.dirs")), gbc);
+        this.enableScriptsFromDirs =
+                new JCheckBox(
+                        Constant.messages.getString(
+                                "options.script.dialog.dirs.enableLoadedScripts"));
 
+        this.add(new ZapHtmlLabel(Constant.messages.getString("options.script.label.dirs")), gbc);
+
+        this.add(enableScriptsFromDirs, gbc);
         tokensOptionsPanel = new AntiCsrfMultipleOptionsPanel(this.extension, getScriptDirModel());
 
         gbc.weighty = 1.0;
@@ -73,6 +81,7 @@ public class OptionsScriptPanel extends AbstractParamPanel {
         ScriptParam param = optionsParam.getParamSet(ScriptParam.class);
         getScriptDirModel().setTokens(param.getScriptDirs());
         tokensOptionsPanel.setRemoveWithoutConfirmation(!param.isConfirmRemoveDir());
+        enableScriptsFromDirs.setSelected(param.isEnableScriptsFromDirs());
     }
 
     @Override
@@ -99,6 +108,7 @@ public class OptionsScriptPanel extends AbstractParamPanel {
 
         param.setScriptDirs(dirs);
         param.setConfirmRemoveDir(!tokensOptionsPanel.isRemoveWithoutConfirmation());
+        param.setEnableScriptsFromDirs(enableScriptsFromDirs.isSelected());
     }
 
     /**

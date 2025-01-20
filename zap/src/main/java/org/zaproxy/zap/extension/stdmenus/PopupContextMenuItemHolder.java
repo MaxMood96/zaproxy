@@ -36,6 +36,7 @@ import org.zaproxy.zap.view.popup.PopupMenuItemContext;
  * PopupMenuItemContext}. Depending on the initialization, it can be shown by itself containing the
  * Popup Menus for each Context or it can just place the Popup Menus in its parent.
  */
+@SuppressWarnings("serial")
 public abstract class PopupContextMenuItemHolder extends ExtensionPopupMenuMessageContainer {
 
     /** The Constant serialVersionUID. */
@@ -85,11 +86,6 @@ public abstract class PopupContextMenuItemHolder extends ExtensionPopupMenuMessa
     }
 
     @Override
-    public int getParentMenuIndex() {
-        return 0;
-    }
-
-    @Override
     public boolean isSubMenu() {
         return true;
     }
@@ -135,7 +131,6 @@ public abstract class PopupContextMenuItemHolder extends ExtensionPopupMenuMessa
                 this.add(piicm);
             } else {
                 piicm = getPopupContextMenu(context, this.parentName);
-                piicm.setMenuIndex(this.getMenuIndex());
                 mainPopupMenuItems.add(piicm);
                 subMenuItems.add(piicm);
             }

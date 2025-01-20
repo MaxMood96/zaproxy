@@ -19,7 +19,9 @@
  */
 package org.zaproxy.zap;
 
+import java.io.File;
 import java.io.FileNotFoundException;
+import java.nio.file.FileAlreadyExistsException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.CommandLine;
@@ -35,7 +37,7 @@ import org.zaproxy.zap.utils.ZapSupportUtils;
  */
 public class CommandLineBootstrap extends HeadlessBootstrap {
 
-    private final Logger logger = LogManager.getLogger(CommandLineBootstrap.class);
+    private static final Logger LOGGER = LogManager.getLogger(CommandLineBootstrap.class);
 
     public CommandLineBootstrap(CommandLine cmdLineArgs) {
         super(cmdLineArgs);
@@ -52,7 +54,7 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
             disableStdOutLog();
         }
 
-        logger.info(getStartingMessage());
+        LOGGER.info(getStartingMessage());
 
         try {
             initModel();
@@ -65,12 +67,19 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
             throw new RuntimeException(e);
         }
 
-        Control control = initControl();
+        Control control;
+        try {
+            control = initControl();
+        } catch (IllegalStateException e) {
+            System.err.println("Failed to start ZAP. " + e.getMessage());
+            return 1;
+        }
 
         warnAddOnsAndExtensionsNoLongerRunnable();
 
         try {
             control.getExtensionLoader().hookCommandLineListener(getArgs());
+            File sbomFile = getArgs().getSaveSbomZip();
             if (getArgs().isEnabled(CommandLine.HELP) || getArgs().isEnabled(CommandLine.HELP2)) {
                 System.out.println(getArgs().getHelp());
 
@@ -80,8 +89,27 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
             } else if (getArgs().isDisplaySupportInfo()) {
                 System.out.println(ZapSupportUtils.getAll(false));
 
+            } else if (sbomFile != null) {
+                if (sbomFile.exists()) {
+                    throw new FileAlreadyExistsException(
+                            sbomFile.getAbsolutePath(), null, "File already exists");
+                }
+
+                int count = ZapSupportUtils.saveSbomZip(sbomFile);
+                if (count == 0) {
+                    System.out.println(
+                            Constant.messages.getString("support.savesbom.warn.nosboms"));
+                } else {
+                    System.out.println(
+                            Constant.messages.getString(
+                                    "support.savesbom.info.generated",
+                                    count,
+                                    sbomFile.getAbsolutePath()));
+                }
+
             } else {
                 if (handleCmdLineSessionArgsSynchronously(control)) {
+                    recordStartStats();
                     control.runCommandLine();
 
                     try {
@@ -94,9 +122,10 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
                     rc = 1;
                 }
             }
-
+        } catch (ShutdownRequestedException e) {
+            rc = 1;
         } catch (final Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
             System.out.println(e.getMessage());
             System.out.println();
             // Help is kind of useful too ;)
@@ -106,7 +135,10 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
         } finally {
             control.shutdown(
                     Model.getSingleton().getOptionsParam().getDatabaseParam().isCompactDatabase());
-            logger.info(Constant.PROGRAM_TITLE + " terminated.");
+            LOGGER.info("{} terminated.", Constant.PROGRAM_TITLE);
+        }
+        if (rc == 0) {
+            rc = control.getExitStatus();
         }
 
         return rc;
@@ -114,6 +146,6 @@ public class CommandLineBootstrap extends HeadlessBootstrap {
 
     @Override
     protected Logger getLogger() {
-        return logger;
+        return LOGGER;
     }
 }

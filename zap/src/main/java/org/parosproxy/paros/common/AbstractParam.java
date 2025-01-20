@@ -34,9 +34,16 @@
 // ZAP: 2019/06/01 Normalise line endings.
 // ZAP: 2019/06/05 Normalise format/style.
 // ZAP: 2020/11/26 Use Log4j 2 classes for logging.
+// ZAP: 2022/09/08 Use format specifiers instead of concatenation when logging.
+// ZAP: 2023/01/10 Tidy up logger.
+// ZAP: 2023/07/06 Add method to read enum values.
 package org.parosproxy.paros.common;
 
+import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.commons.configuration.ConfigurationUtils;
 import org.apache.commons.configuration.ConversionException;
 import org.apache.commons.configuration.FileConfiguration;
@@ -47,9 +54,10 @@ import org.zaproxy.zap.utils.ZapXmlConfiguration;
 
 public abstract class AbstractParam implements Cloneable {
 
-    private static final Logger logger = LogManager.getLogger(AbstractParam.class);
+    private static final Logger LOGGER = LogManager.getLogger(AbstractParam.class);
 
     private FileConfiguration config = null;
+
     /**
      * Loads the configurations from the given configuration file.
      *
@@ -61,7 +69,7 @@ public abstract class AbstractParam implements Cloneable {
         try {
             parse();
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 
@@ -86,19 +94,17 @@ public abstract class AbstractParam implements Cloneable {
             config = new ZapXmlConfiguration(filePath);
             if (overrides != null) {
                 for (Entry<String, String> entry : overrides.getOrderedConfigs().entrySet()) {
-                    logger.info(
-                            "Setting config "
-                                    + entry.getKey()
-                                    + " = "
-                                    + entry.getValue()
-                                    + " was "
-                                    + config.getString(entry.getKey()));
+                    LOGGER.info(
+                            "Setting config {} = {} was {}",
+                            entry.getKey(),
+                            entry.getValue(),
+                            config.getString(entry.getKey()));
                     config.setProperty(entry.getKey(), entry.getValue());
                 }
             }
             parse();
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
     }
 
@@ -118,7 +124,7 @@ public abstract class AbstractParam implements Cloneable {
             clone.load((FileConfiguration) ConfigurationUtils.cloneConfiguration(config));
             return clone;
         } catch (Exception e) {
-            logger.error(e.getMessage(), e);
+            LOGGER.error(e.getMessage(), e);
         }
         return null;
     }
@@ -168,7 +174,7 @@ public abstract class AbstractParam implements Cloneable {
      * @since 2.7.0
      */
     protected static void logConversionException(String key, ConversionException e) {
-        logger.warn("Failed to read '" + key + "'", e);
+        LOGGER.warn("Failed to read '{}'", key, e);
     }
 
     /**
@@ -228,5 +234,44 @@ public abstract class AbstractParam implements Cloneable {
             logConversionException(key, e);
         }
         return defaultValue;
+    }
+
+    /**
+     * Gets an enum value from the given configuration key.
+     *
+     * <p>The default value is returned if the key doesn't exist or it's not an enum value.
+     *
+     * @param key the configuration key.
+     * @param defaultValue the default value, if the key doesn't exist or it's not an enum value.
+     * @return the value of the configuration, or default value.
+     * @throws NullPointerException if the given default value is {@code null}.
+     * @since 2.13.0
+     */
+    protected <T extends Enum<T>> T getEnum(String key, T defaultValue) {
+        String value = getString(key, defaultValue.name());
+        @SuppressWarnings("unchecked")
+        Class<T> enumType = (Class<T>) defaultValue.getClass();
+        try {
+            return Enum.valueOf(enumType, value);
+        } catch (IllegalArgumentException e) {
+            LOGGER.warn(
+                    "Failed to create enum for '{}' using '{}'. Valid values: {}",
+                    key,
+                    value,
+                    getValues(enumType));
+        }
+        return defaultValue;
+    }
+
+    private static <T extends Enum<T>> List<String> getValues(Class<T> enumType) {
+        try {
+            Method valuesMethod = enumType.getDeclaredMethod("values");
+            @SuppressWarnings("unchecked")
+            T[] values = (T[]) valuesMethod.invoke(enumType);
+            return Stream.of(values).map(Enum::name).collect(Collectors.toList());
+        } catch (Exception e) {
+            LOGGER.error("Error getting enum values:", e);
+        }
+        return List.of();
     }
 }

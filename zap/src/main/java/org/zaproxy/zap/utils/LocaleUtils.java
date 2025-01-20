@@ -28,11 +28,13 @@ import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -40,7 +42,7 @@ import org.zaproxy.zap.view.ViewLocale;
 
 public final class LocaleUtils {
 
-    private static final Logger logger = LogManager.getLogger(LocaleUtils.class);
+    private static final Logger LOGGER = LogManager.getLogger(LocaleUtils.class);
 
     private static final String MESSAGES_BASE_FILENAME = Constant.MESSAGES_PREFIX + "_";
 
@@ -401,9 +403,9 @@ public final class LocaleUtils {
     private static List<String> readAvailableLocales() {
         File dir = new File(Constant.getZapInstall(), Constant.LANG_DIR);
         if (!dir.exists()) {
-            logger.debug(
-                    "Skipping read of available locales, the directory does not exist: "
-                            + dir.getAbsolutePath());
+            LOGGER.debug(
+                    "Skipping read of available locales, the directory does not exist: {}",
+                    dir.getAbsolutePath());
             return new ArrayList<>(0);
         }
 
@@ -411,7 +413,7 @@ public final class LocaleUtils {
         String[] files = dir.list(filter);
 
         if (files == null || files.length == 0) {
-            logger.warn("No Messages files in directory " + dir.getAbsolutePath());
+            LOGGER.warn("No Messages files in directory {}", dir.getAbsolutePath());
             return new ArrayList<>(0);
         }
 
@@ -453,8 +455,16 @@ public final class LocaleUtils {
 
         List<ViewLocale> localesUI = new ArrayList<>();
         if (!locales.isEmpty()) {
+            Map<String, Long> languageCount =
+                    locales.stream()
+                            .map(LocaleUtils::getLanguage)
+                            .collect(
+                                    Collectors.groupingBy(
+                                            Function.identity(), Collectors.counting()));
             for (String locale : locales) {
-                localesUI.add(new ViewLocale(locale, getLocalDisplayName(locale)));
+                boolean duplicatedLanguage = languageCount.get(getLanguage(locale)) != 1;
+                localesUI.add(
+                        new ViewLocale(locale, getLocalDisplayName(locale, duplicatedLanguage)));
             }
 
             Collections.sort(
@@ -474,6 +484,10 @@ public final class LocaleUtils {
         return localesUI;
     }
 
+    private static String getLanguage(String locale) {
+        return locale.split("_", 2)[0];
+    }
+
     /**
      * Gets the name of the language of and for the given locale.
      *
@@ -481,20 +495,29 @@ public final class LocaleUtils {
      * @return the name of the language
      */
     public static String getLocalDisplayName(String locale) {
+        return getLocalDisplayName(locale, false);
+    }
+
+    private static String getLocalDisplayName(String locale, boolean useDisplayName) {
         String desc = "" + locale;
         if (locale != null) {
             String[] langArray = locale.split("_");
-            Locale loc = null;
-            if (langArray.length == 1) {
-                loc = new Locale(langArray[0]);
-            } else if (langArray.length == 2) {
-                loc = new Locale(langArray[0], langArray[1]);
-            } else if (langArray.length == 3) {
-                loc = new Locale(langArray[0], langArray[1], langArray[2]);
+            if (langArray.length > 3) {
+                return desc;
             }
-            if (loc != null) {
-                desc = loc.getDisplayLanguage(loc);
+
+            Locale.Builder builder = new Locale.Builder().setLanguage(langArray[0]);
+            if (langArray.length >= 2) {
+                builder.setRegion(langArray[1]);
             }
+            if (langArray.length == 3) {
+                builder.setVariant(langArray[2]);
+            }
+            Locale loc = builder.build();
+            if (useDisplayName) {
+                return loc.getDisplayName(loc);
+            }
+            desc = loc.getDisplayLanguage(loc);
         }
         return desc;
     }

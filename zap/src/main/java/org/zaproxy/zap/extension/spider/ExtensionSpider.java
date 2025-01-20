@@ -30,7 +30,7 @@ import java.util.List;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import org.apache.commons.httpclient.URI;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.Constant;
@@ -43,25 +43,25 @@ import org.parosproxy.paros.model.Session;
 import org.parosproxy.paros.model.SiteNode;
 import org.zaproxy.zap.extension.help.ExtensionHelp;
 import org.zaproxy.zap.model.Context;
-import org.zaproxy.zap.model.DefaultValueGenerator;
 import org.zaproxy.zap.model.ScanController;
 import org.zaproxy.zap.model.StructuralNode;
 import org.zaproxy.zap.model.StructuralSiteNode;
 import org.zaproxy.zap.model.Target;
-import org.zaproxy.zap.model.ValueGenerator;
-import org.zaproxy.zap.spider.SpiderParam;
-import org.zaproxy.zap.spider.filters.FetchFilter;
-import org.zaproxy.zap.spider.filters.HttpPrefixFetchFilter;
-import org.zaproxy.zap.spider.filters.ParseFilter;
-import org.zaproxy.zap.spider.parser.SpiderParser;
 import org.zaproxy.zap.users.User;
 import org.zaproxy.zap.view.ZapMenuItem;
 
-/** The ExtensionSpider is the Extension that controls the Spider. */
+/**
+ * The ExtensionSpider is the Extension that controls the Spider.
+ *
+ * @deprecated (2.12.0) See the spider add-on in zap-extensions instead.
+ */
+@Deprecated
+@SuppressWarnings("removal")
 public class ExtensionSpider extends ExtensionAdaptor
         implements SessionChangedListener, ScanController<SpiderScan> {
 
-    private ValueGenerator generator = new DefaultValueGenerator();
+    private org.zaproxy.zap.model.ValueGenerator generator =
+            new org.zaproxy.zap.model.DefaultValueGenerator();
 
     public static final int EXTENSION_ORDER = 30;
 
@@ -84,17 +84,19 @@ public class ExtensionSpider extends ExtensionAdaptor
     private OptionsSpiderPanel optionsSpiderPanel = null;
 
     /** The params for the spider. */
-    private SpiderParam params = null;
+    private org.zaproxy.zap.spider.SpiderParam params = null;
 
-    private List<SpiderParser> customParsers;
-    private List<FetchFilter> customFetchFilters;
-    private List<ParseFilter> customParseFilters;
+    private List<org.zaproxy.zap.spider.parser.SpiderParser> customParsers;
+    private List<org.zaproxy.zap.spider.filters.FetchFilter> customFetchFilters;
+    private List<org.zaproxy.zap.spider.filters.ParseFilter> customParseFilters;
 
     private SpiderAPI spiderApi;
 
     private SpiderScanController scanController = null;
 
     private Icon icon;
+
+    private boolean panelSwitch = true;
 
     /**
      * The list of excluded patterns of sites. Patterns are added here with the ExcludeFromSpider
@@ -119,14 +121,14 @@ public class ExtensionSpider extends ExtensionAdaptor
         this.scanController = new SpiderScanController(this);
     }
 
-    public void setValueGenerator(ValueGenerator generator) {
+    public void setValueGenerator(org.zaproxy.zap.model.ValueGenerator generator) {
         if (generator == null) {
             throw new IllegalArgumentException("Parameter generator must not be null.");
         }
         this.generator = generator;
     }
 
-    public ValueGenerator getValueGenerator() {
+    public org.zaproxy.zap.model.ValueGenerator getValueGenerator() {
         return generator;
     }
 
@@ -195,9 +197,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @return the spider parameters
      */
-    protected SpiderParam getSpiderParam() {
+    protected org.zaproxy.zap.spider.SpiderParam getSpiderParam() {
         if (params == null) {
-            params = new SpiderParam();
+            params = new org.zaproxy.zap.spider.SpiderParam();
         }
         return params;
     }
@@ -386,7 +388,7 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @return the custom parsers
      */
-    public List<SpiderParser> getCustomParsers() {
+    public List<org.zaproxy.zap.spider.parser.SpiderParser> getCustomParsers() {
         return customParsers;
     }
 
@@ -395,7 +397,7 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @return the custom fetch filters
      */
-    public List<FetchFilter> getCustomFetchFilters() {
+    public List<org.zaproxy.zap.spider.filters.FetchFilter> getCustomFetchFilters() {
         return customFetchFilters;
     }
 
@@ -404,7 +406,7 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @return the custom parse filters
      */
-    public List<ParseFilter> getCustomParseFilters() {
+    public List<org.zaproxy.zap.spider.filters.ParseFilter> getCustomParseFilters() {
         return customParseFilters;
     }
 
@@ -417,9 +419,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @param parser the parser
      * @throws IllegalArgumentException if the given parameter is {@code null}.
-     * @see #removeCustomParser(SpiderParser)
+     * @see #removeCustomParser(org.zaproxy.zap.spider.parser.SpiderParser)
      */
-    public void addCustomParser(SpiderParser parser) {
+    public void addCustomParser(org.zaproxy.zap.spider.parser.SpiderParser parser) {
         validateParameterNonNull(parser, "parser");
         this.customParsers.add(parser);
     }
@@ -438,9 +440,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      * @param parser the parser
      * @throws IllegalArgumentException if the given parameter is {@code null}.
      * @since 2.6.0
-     * @see #addCustomParser(SpiderParser)
+     * @see #addCustomParser(org.zaproxy.zap.spider.parser.SpiderParser)
      */
-    public void removeCustomParser(SpiderParser parser) {
+    public void removeCustomParser(org.zaproxy.zap.spider.parser.SpiderParser parser) {
         validateParameterNonNull(parser, "parser");
         this.customParsers.remove(parser);
     }
@@ -453,9 +455,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @param filter the filter
      * @throws IllegalArgumentException if the given parameter is {@code null}.
-     * @see #removeCustomFetchFilter(FetchFilter)
+     * @see #removeCustomFetchFilter(org.zaproxy.zap.spider.filters.FetchFilter)
      */
-    public void addCustomFetchFilter(FetchFilter filter) {
+    public void addCustomFetchFilter(org.zaproxy.zap.spider.filters.FetchFilter filter) {
         validateParameterNonNull(filter, "filter");
         this.customFetchFilters.add(filter);
     }
@@ -468,9 +470,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      * @param filter the filter
      * @throws IllegalArgumentException if the given parameter is {@code null}.
      * @since 2.6.0
-     * @see #addCustomFetchFilter(FetchFilter)
+     * @see #addCustomFetchFilter(org.zaproxy.zap.spider.filters.FetchFilter)
      */
-    public void removeCustomFetchFilter(FetchFilter filter) {
+    public void removeCustomFetchFilter(org.zaproxy.zap.spider.filters.FetchFilter filter) {
         validateParameterNonNull(filter, "filter");
         this.customFetchFilters.remove(filter);
     }
@@ -483,9 +485,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      *
      * @param filter the filter
      * @throws IllegalArgumentException if the given parameter is {@code null}.
-     * @see #removeCustomParseFilter(ParseFilter)
+     * @see #removeCustomParseFilter(org.zaproxy.zap.spider.filters.ParseFilter)
      */
-    public void addCustomParseFilter(ParseFilter filter) {
+    public void addCustomParseFilter(org.zaproxy.zap.spider.filters.ParseFilter filter) {
         validateParameterNonNull(filter, "filter");
         this.customParseFilters.add(filter);
     }
@@ -498,9 +500,9 @@ public class ExtensionSpider extends ExtensionAdaptor
      * @param filter the filter
      * @throws IllegalArgumentException if the given parameter is {@code null}.
      * @since 2.6.0
-     * @see #addCustomParseFilter(ParseFilter)
+     * @see #addCustomParseFilter(org.zaproxy.zap.spider.filters.ParseFilter)
      */
-    public void removeCustomParseFilter(ParseFilter filter) {
+    public void removeCustomParseFilter(org.zaproxy.zap.spider.filters.ParseFilter filter) {
         validateParameterNonNull(filter, "filter");
         this.customParseFilters.remove(filter);
     }
@@ -538,7 +540,8 @@ public class ExtensionSpider extends ExtensionAdaptor
      * @return a {@code String} containing the display name, never {@code null}
      */
     private String createDisplayName(Target target, Object[] customConfigurations) {
-        HttpPrefixFetchFilter subtreeFecthFilter = getUriPrefixFecthFilter(customConfigurations);
+        org.zaproxy.zap.spider.filters.HttpPrefixFetchFilter subtreeFecthFilter =
+                getUriPrefixFecthFilter(customConfigurations);
         if (subtreeFecthFilter != null) {
             return abbreviateDisplayName(subtreeFecthFilter.getNormalisedPrefix());
         }
@@ -566,11 +569,14 @@ public class ExtensionSpider extends ExtensionAdaptor
      * @param customConfigurations the custom configurations of the spider
      * @return the {@code HttpPrefixFetchFilter} found, {@code null} otherwise.
      */
-    private HttpPrefixFetchFilter getUriPrefixFecthFilter(Object[] customConfigurations) {
+    private org.zaproxy.zap.spider.filters.HttpPrefixFetchFilter getUriPrefixFecthFilter(
+            Object[] customConfigurations) {
         if (customConfigurations != null) {
             for (Object customConfiguration : customConfigurations) {
-                if (customConfiguration instanceof HttpPrefixFetchFilter) {
-                    return (HttpPrefixFetchFilter) customConfiguration;
+                if (customConfiguration
+                        instanceof org.zaproxy.zap.spider.filters.HttpPrefixFetchFilter) {
+                    return (org.zaproxy.zap.spider.filters.HttpPrefixFetchFilter)
+                            customConfiguration;
                 }
             }
         }
@@ -645,7 +651,29 @@ public class ExtensionSpider extends ExtensionAdaptor
         this.getSpiderPanel().scannerStarted(scan);
         scan.setListener(getSpiderPanel()); // So the UI gets updated
         this.getSpiderPanel().switchView(scan);
-        this.getSpiderPanel().setTabFocus();
+        if (isPanelSwitch()) {
+            this.getSpiderPanel().setTabFocus();
+        }
+    }
+
+    /**
+     * Returns true if the GUI will switch to the Spider panel when a scan is started.
+     *
+     * @since 2.11.0
+     */
+    public boolean isPanelSwitch() {
+        return panelSwitch;
+    }
+
+    /**
+     * Sets if the GUI will switch to the Spider panel when a scan is started. Code should only set
+     * this to false just before starting a scan and reset it to true as soon as the scan has
+     * started.
+     *
+     * @since 2.11.0
+     */
+    public void setPanelSwitch(boolean panelSwitch) {
+        this.panelSwitch = panelSwitch;
     }
 
     /**

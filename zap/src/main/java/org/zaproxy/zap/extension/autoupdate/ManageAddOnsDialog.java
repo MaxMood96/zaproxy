@@ -92,6 +92,7 @@ import org.zaproxy.zap.view.LayoutHelper;
 import org.zaproxy.zap.view.ZapTable;
 import org.zaproxy.zap.view.panels.TableFilterPanel;
 
+@SuppressWarnings("serial")
 public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateCallback {
 
     protected enum State {
@@ -113,7 +114,12 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
     private static final String MARKETPLACE_PANEL = "MarketplacePanel";
     private static final double ADD_ON_DETAILS_RESIZE_WEIGHT = 0.7D;
 
-    private static final Logger logger = LogManager.getLogger(ManageAddOnsDialog.class);
+    private static final String ADD_ON_MANDATORY =
+            Constant.messages.getString("cfu.table.mandatory.value.yes");
+    private static final String ADD_ON_NOT_MANDATORY =
+            Constant.messages.getString("cfu.table.mandatory.value.no");
+
+    private static final Logger LOGGER = LogManager.getLogger(ManageAddOnsDialog.class);
     private static final long serialVersionUID = 1L;
     private JTabbedPane jTabbed = null;
     private JPanel topPanel = null;
@@ -156,7 +162,9 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
 
     private State state = null;
 
-    /** @throws HeadlessException */
+    /**
+     * @throws HeadlessException
+     */
     public ManageAddOnsDialog(
             ExtensionAutoUpdate ext, String currentVersion, AddOnCollection installedAddOns)
             throws HeadlessException {
@@ -1144,7 +1152,7 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                     }
                 }
             } catch (Exception e) {
-                logger.debug("Error on " + this.latestInfo.getZapRelease().getUrl(), e);
+                LOGGER.debug("Error on {}", this.latestInfo.getZapRelease().getUrl(), e);
                 this.getDownloadProgress()
                         .setText(Constant.messages.getString("cfu.table.label.failed"));
             }
@@ -1183,7 +1191,7 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
     @Override
     public void gotLatestData(AddOnCollection aoc) {
         // Callback
-        logger.debug("gotLatestData(AddOnCollection " + aoc);
+        LOGGER.debug("gotLatestData(AddOnCollection {}", aoc);
 
         if (aoc != null) {
             EventQueue.invokeLater(() -> setLatestVersionInfo(aoc));
@@ -1195,7 +1203,7 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
 
     @Override
     public void insecureUrl(String url, Exception cause) {
-        logger.error("Failed to get check for updates on " + url, cause);
+        LOGGER.error("Failed to get check for updates on {}", url, cause);
         View.getSingleton().showWarningDialog(this, Constant.messages.getString("cfu.warn.badurl"));
     }
 
@@ -1228,6 +1236,8 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
         private final ZapLabel notFromVersionField;
         private final JLabel fileLabel;
         private final ZapLabel fileField;
+        private final JLabel mandatoryLabel;
+        private final ZapLabel mandatoryField;
 
         private final CardLayout cardLayout;
 
@@ -1271,7 +1281,7 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                             try {
                                 Desktop.getDesktop().browse(evt.getURL().toURI());
                             } catch (IOException | URISyntaxException e) {
-                                logger.warn("Failed to open the URL: " + evt.getURL(), e);
+                                LOGGER.warn("Failed to open the URL: {}", evt.getURL(), e);
                             }
                         }
                     });
@@ -1304,7 +1314,10 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
             notFromVersionField = createZapLabelField(notFromVersionLabel);
 
             fileLabel = new JLabel(Constant.messages.getString("cfu.table.header.file"));
-            fileField = createZapLabelField(notFromVersionLabel);
+            fileField = createZapLabelField(fileLabel);
+
+            mandatoryLabel = new JLabel(Constant.messages.getString("cfu.table.header.mandatory"));
+            mandatoryField = createZapLabelField(mandatoryLabel);
 
             layout.setHorizontalGroup(
                     layout.createSequentialGroup()
@@ -1322,7 +1335,8 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                                             .addComponent(dependenciesLabel)
                                             .addComponent(notBeforeVersionLabel)
                                             .addComponent(notFromVersionLabel)
-                                            .addComponent(fileLabel))
+                                            .addComponent(fileLabel)
+                                            .addComponent(mandatoryLabel))
                             .addGroup(
                                     layout.createParallelGroup(GroupLayout.Alignment.LEADING)
                                             .addComponent(
@@ -1389,6 +1403,11 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                                                     fileField,
                                                     0,
                                                     GroupLayout.DEFAULT_SIZE,
+                                                    Short.MAX_VALUE)
+                                            .addComponent(
+                                                    mandatoryField,
+                                                    0,
+                                                    GroupLayout.DEFAULT_SIZE,
                                                     Short.MAX_VALUE)));
 
             layout.setVerticalGroup(
@@ -1444,7 +1463,11 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                             .addGroup(
                                     layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
                                             .addComponent(fileLabel)
-                                            .addComponent(fileField)));
+                                            .addComponent(fileField))
+                            .addGroup(
+                                    layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                                            .addComponent(mandatoryLabel)
+                                            .addComponent(mandatoryField)));
 
             cardLayout = new CardLayout();
             setLayout(cardLayout);
@@ -1495,10 +1518,19 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
                 fileLabel.setVisible(true);
                 fileField.setText(addOn.getFile().toString());
                 fileField.setVisible(true);
+
+                mandatoryLabel.setVisible(true);
+                mandatoryField.setText(
+                        addOn.isMandatory() ? ADD_ON_MANDATORY : ADD_ON_NOT_MANDATORY);
+                mandatoryField.setVisible(true);
             } else {
                 fileLabel.setVisible(false);
                 fileField.setText("");
                 fileField.setVisible(false);
+
+                mandatoryLabel.setVisible(false);
+                mandatoryField.setText(ADD_ON_NOT_MANDATORY);
+                mandatoryField.setVisible(false);
             }
         }
 
@@ -1517,6 +1549,7 @@ public class ManageAddOnsDialog extends AbstractFrame implements CheckForUpdateC
             notBeforeVersionField.setText("");
             notFromVersionField.setText("");
             fileField.setText("");
+            mandatoryField.setText(ADD_ON_NOT_MANDATORY);
         }
     }
 

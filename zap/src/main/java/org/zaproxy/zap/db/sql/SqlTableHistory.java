@@ -26,12 +26,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Vector;
+import java.util.function.ToIntFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.parosproxy.paros.Constant;
 import org.parosproxy.paros.db.Database;
 import org.parosproxy.paros.db.DatabaseException;
 import org.parosproxy.paros.db.DbUtils;
@@ -66,29 +67,27 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
     private static boolean isExistStatusCode = false;
 
     // ZAP: Added logger
-    private static final Logger log = LogManager.getLogger(SqlTableHistory.class);
+    private static final Logger LOGGER = LogManager.getLogger(SqlTableHistory.class);
+
+    private DatabaseParam options;
 
     private boolean bodiesAsBytes;
 
+    private int configuredrequestbodysize = -1;
+    private int configuredresponsebodysize = -1;
+
     public SqlTableHistory() {}
 
-    // ZAP: Allow the request and response body sizes to be user-specifiable as far as possible
-    int configuredrequestbodysize = -1;
-    int configuredresponsebodysize = -1;
+    @Override
+    public void setDatabaseOptions(DatabaseParam options) {
+        this.options = Objects.requireNonNull(options);
+    }
 
     @Override
     protected void reconnect(Connection conn) throws DatabaseException {
         try {
-            // ZAP: Allow the request and response body sizes to be user-specifiable as far as
-            // possible
-            // re-load the configuration data from file, to get the configured length of the request
-            // and response bodies
-            // this will later be compared to the actual lengths of these fields in the database (in
-            // updateTable(Connection c))
-            DatabaseParam dbparams = new DatabaseParam();
-            dbparams.load(Constant.getInstance().FILE_CONFIG);
-            this.configuredrequestbodysize = dbparams.getRequestBodySize();
-            this.configuredresponsebodysize = dbparams.getResponseBodySize();
+            configuredrequestbodysize = getBodySizeOption(DatabaseParam::getRequestBodySize);
+            configuredresponsebodysize = getBodySizeOption(DatabaseParam::getResponseBodySize);
 
             bodiesAsBytes = true;
 
@@ -111,9 +110,7 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
                     try {
                         stmt.close();
                     } catch (SQLException e) {
-                        if (log.isDebugEnabled()) {
-                            log.debug(e.getMessage(), e);
-                        }
+                        LOGGER.debug(e.getMessage(), e);
                     }
                 }
             }
@@ -121,6 +118,10 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
         } catch (SQLException e) {
             throw new DatabaseException(e);
         }
+    }
+
+    private int getBodySizeOption(ToIntFunction<DatabaseParam> function) {
+        return options != null ? function.applyAsInt(options) : DatabaseParam.DEFAULT_BODY_SIZE;
     }
 
     // ZAP: Added the method.
@@ -174,16 +175,14 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
                     }
                 }
             } catch (SQLException e) {
-                log.error("An error occurred while modifying a column length on " + TABLE_NAME);
-                log.error(
-                        "The 'Maximum Request Body Size' value in the Database Options needs to be set to at least "
-                                + requestbodysizeindb
-                                + " to avoid this error");
-                log.error(
-                        "The 'Maximum Response Body Size' value in the Database Options needs to be set to at least "
-                                + responsebodysizeindb
-                                + " to avoid this error");
-                log.error("The SQL Exception was:", e);
+                LOGGER.error("An error occurred while modifying a column length on {}", TABLE_NAME);
+                LOGGER.error(
+                        "The 'Maximum Request Body Size' value in the Database Options needs to be set to at least {} to avoid this error",
+                        requestbodysizeindb);
+                LOGGER.error(
+                        "The 'Maximum Response Body Size' value in the Database Options needs to be set to at least {}  to avoid this error",
+                        responsebodysizeindb);
+                LOGGER.error("The SQL Exception was:", e);
                 throw e;
             }
         } catch (SQLException e) {
@@ -281,14 +280,22 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
                     "The actual Request Body length "
                             + reqBody.length
                             + " is greater than the configured request body length "
-                            + this.configuredrequestbodysize);
+                            + this.configuredrequestbodysize
+                            + " for "
+                            + method
+                            + " "
+                            + uri);
         }
         if (resBody.length > this.configuredresponsebodysize) {
             throw new DatabaseException(
                     "The actual Response Body length "
                             + resBody.length
                             + " is greater than the configured response body length "
-                            + this.configuredresponsebodysize);
+                            + this.configuredresponsebodysize
+                            + " for "
+                            + method
+                            + " "
+                            + uri);
         }
 
         SqlPreparedStatementWrapper psInsert = null;
@@ -648,26 +655,6 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
         }
     }
 
-    /**
-     * @deprecated (2.5.0) Use {@link HistoryReference#addTemporaryType(int)} instead.
-     * @since 2.4
-     * @param historyType the history type that will be set as temporary
-     * @see #deleteTemporary()
-     */
-    @Deprecated
-    public static void setHistoryTypeAsTemporary(int historyType) {}
-
-    /**
-     * @deprecated (2.5.0) Use {@link HistoryReference#removeTemporaryType(int)} instead.
-     * @since 2.4
-     * @param historyType the history type that will be marked as temporary
-     * @see #deleteTemporary()
-     */
-    @Deprecated
-    public static void unsetHistoryTypeAsTemporary(int historyType) {
-        HistoryReference.removeTemporaryType(historyType);
-    }
-
     @Override
     public void deleteTemporary() throws DatabaseException {
         SqlPreparedStatementWrapper psDeleteTemp = null;
@@ -795,7 +782,7 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
                     psReadCache.close();
                 } catch (Exception e) {
                     // ZAP: Log exceptions
-                    log.warn(e.getMessage(), e);
+                    LOGGER.warn(e.getMessage(), e);
                 }
             }
 
@@ -846,7 +833,7 @@ public class SqlTableHistory extends SqlAbstractTable implements TableHistory {
                     psReadCache.close();
                 } catch (Exception e) {
                     // ZAP: Log exceptions
-                    log.warn(e.getMessage(), e);
+                    LOGGER.warn(e.getMessage(), e);
                 }
             }
 

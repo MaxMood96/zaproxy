@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.parosproxy.paros.network.HttpHeader;
@@ -39,6 +39,7 @@ import org.zaproxy.zap.core.scanner.InputVector;
 public class VariantMultipartFormParameters implements Variant {
 
     private static final Logger LOGGER = LogManager.getLogger(VariantMultipartFormParameters.class);
+    private static final String DOUBLE_HYPHEN = "--";
     private static final Pattern FIELD_NAME_PATTERN =
             Pattern.compile(
                     "\\s*content-disposition\\s*:.*\\s+name\\s*\\=?\\s*\\\"?(?<name>.[^;\\\"\\n]*)\\\"?\\;?.*",
@@ -59,27 +60,38 @@ public class VariantMultipartFormParameters implements Variant {
     private List<NameValuePair> params = Collections.emptyList();
     private List<MultipartFormParameter> multiPartParams = new ArrayList<>();
 
+    private static final String SHORT_NAME = "multipart";
+
+    @Override
+    public String getShortName() {
+        return SHORT_NAME;
+    }
+
     @Override
     public void setMessage(HttpMessage msg) {
         if (msg == null) {
             throw new IllegalArgumentException("Parameter message must not be null.");
         }
 
-        String contentType = msg.getRequestHeader().getHeader(HttpHeader.CONTENT_TYPE);
-        if (contentType == null || !contentType.toLowerCase().startsWith("multipart/form-data")) {
+        String contentType = msg.getRequestHeader().getNormalisedContentTypeValue();
+        if (contentType == null || !contentType.startsWith("multipart/form-data")) {
             return;
         }
 
         ArrayList<NameValuePair> extractedParameters = new ArrayList<>();
         int position = 0;
         int offset = 0;
-        String boundary = getBoundary(contentType) + HttpHeader.CRLF;
-        for (String part : msg.getRequestBody().toString().split(boundary)) {
+        String bareBoundary = getBoundary(contentType, msg);
+        if (bareBoundary == null) {
+            return;
+        }
+        String boundaryCrlf = bareBoundary + HttpHeader.CRLF;
+        for (String part : msg.getRequestBody().toString().split(Pattern.quote(boundaryCrlf))) {
             if (!StringUtils.isBlank(part)) {
                 String partHeaderLine =
                         part.substring(0, part.indexOf(HttpHeader.CRLF + HttpHeader.CRLF));
                 boolean isFileParam = partHeaderLine.contains("filename=");
-                part = boundary + part;
+                part = boundaryCrlf + part;
                 Matcher nameMatcher = FIELD_NAME_PATTERN.matcher(partHeaderLine);
                 Matcher valueMatcher = FIELD_VALUE_PATTERN.matcher(part);
                 nameMatcher.find();
@@ -95,7 +107,7 @@ public class VariantMultipartFormParameters implements Variant {
                 // Value doesn't include boundary, headerline, or double CRLF
                 String value =
                         part.replaceAll(
-                                Pattern.quote(boundary + partHeaderLine)
+                                Pattern.quote(boundaryCrlf + partHeaderLine)
                                         + HttpHeader.CRLF
                                         + HttpHeader.CRLF,
                                 "");
@@ -103,8 +115,8 @@ public class VariantMultipartFormParameters implements Variant {
                         value.replaceAll(
                                 HttpHeader.CRLF
                                         + "("
-                                        + Pattern.quote(getBoundary(contentType))
-                                        + "--"
+                                        + Pattern.quote(bareBoundary)
+                                        + DOUBLE_HYPHEN
                                         + HttpHeader.CRLF
                                         + ")?$",
                                 ""); // Strip final boundary
@@ -129,11 +141,8 @@ public class VariantMultipartFormParameters implements Variant {
                                 + part.indexOf(HttpHeader.CRLF + HttpHeader.CRLF)
                                 + 4; // 4 for two CRLFs
                 int end = start + value.length();
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug(
-                            "Name: " + name + " O: " + offset + " S: " + start + " E: " + end
-                                    + " Pos: " + position);
-                }
+                LOGGER.debug(
+                        "Name: {} O: {} S: {} E: {} Pos: {}", name, offset, start, end, position);
                 multiPartParams.add(
                         new MultipartFormParameter(
                                 name,
@@ -142,9 +151,7 @@ public class VariantMultipartFormParameters implements Variant {
                                 end,
                                 position,
                                 MultipartFormParameter.Type.GENERAL));
-                if (LOGGER.isDebugEnabled()) {
-                    LOGGER.debug("Name: " + name + " value: " + valueMatcher.group("value"));
-                }
+                LOGGER.debug("Name: {} value: {}", name, valueMatcher.group("value"));
                 if (isFileParam) {
                     position -= 2;
                     // Extract the filename
@@ -160,11 +167,13 @@ public class VariantMultipartFormParameters implements Variant {
                                     position));
                     int fnStart = offset + part.indexOf(fnValue);
                     int fnEnd = fnStart + fnValue.length();
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                                "Name: " + name + " O: " + offset + " S: " + fnStart + " E: "
-                                        + fnEnd + " Pos: " + position);
-                    }
+                    LOGGER.debug(
+                            "Name: {} O: {} S: {} E: {} Pos: {}",
+                            name,
+                            offset,
+                            fnStart,
+                            fnEnd,
+                            position);
                     multiPartParams.add(
                             multiPartParams.size() - 1,
                             new MultipartFormParameter(
@@ -187,11 +196,13 @@ public class VariantMultipartFormParameters implements Variant {
                                     ++position));
                     int ctStart = offset + part.indexOf(ctValue);
                     int ctEnd = ctStart + ctValue.length();
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                                "Name: " + name + " O: " + offset + " S: " + ctStart + " E: "
-                                        + ctEnd + " Pos: " + position);
-                    }
+                    LOGGER.debug(
+                            "Name: {} O: {} S: {} E: {} Pos: {}",
+                            name,
+                            offset,
+                            ctStart,
+                            ctEnd,
+                            position);
                     multiPartParams.add(
                             multiPartParams.size() - 1,
                             new MultipartFormParameter(
@@ -250,19 +261,13 @@ public class VariantMultipartFormParameters implements Variant {
             int idx = originalPosition - 1;
 
             MultipartFormParameter mpPart = this.multiPartParams.get(idx);
-            if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug(
-                        "i: "
-                                + idx
-                                + " pos: "
-                                + originalPosition
-                                + " S: "
-                                + mpPart.getStart()
-                                + " E: "
-                                + mpPart.getEnd()
-                                + " O: "
-                                + offset);
-            }
+            LOGGER.debug(
+                    "i: {} pos: {} S: {} E: {} O: {}",
+                    idx,
+                    originalPosition,
+                    mpPart.getStart(),
+                    mpPart.getEnd(),
+                    offset);
             newBodyBuilder.replace(mpPart.getStart() + offset, mpPart.getEnd() + offset, value);
             offset = offset + value.length() - mpPart.getEnd() + mpPart.getStart();
         }
@@ -271,10 +276,10 @@ public class VariantMultipartFormParameters implements Variant {
         return newBody;
     }
 
-    private String getBoundary(String contentTypeHeader) {
+    private static String getBoundary(String contentTypeHeader, HttpMessage msg) {
         int index = contentTypeHeader.lastIndexOf("boundary=");
         if (index == -1) {
-            return null;
+            return getBoundaryFromBody(msg);
         }
         String boundary = contentTypeHeader.substring(index + 9); // "boundary=" is 9
         if (boundary.charAt(0) == '"') {
@@ -282,8 +287,21 @@ public class VariantMultipartFormParameters implements Variant {
             boundary = boundary.substring(1, index);
         }
         // The real token is always preceded by an extra "--"
-        boundary = "--" + boundary;
+        boundary = DOUBLE_HYPHEN + boundary;
 
         return boundary;
+    }
+
+    private static String getBoundaryFromBody(HttpMessage msg) {
+        String body = msg.getRequestBody().toString();
+        if (body.startsWith(DOUBLE_HYPHEN) && hasAtleasetOneParam(body)) {
+            return body.substring(0, body.indexOf(HttpHeader.CRLF));
+        }
+        return null;
+    }
+
+    private static boolean hasAtleasetOneParam(String body) {
+        // 1 - First boundary, 2 - End boundary, 3 - End final boundary
+        return body.contains(HttpHeader.CRLF) && StringUtils.countMatches(body, DOUBLE_HYPHEN) > 3;
     }
 }
